@@ -12,6 +12,7 @@ import org.thoughtcrime.securesms.components.settings.PreferenceModel
 import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.util.ContextUtil
 import org.thoughtcrime.securesms.util.SpanUtil
+import org.thoughtcrime.securesms.util.TextSecurePreferences
 import org.thoughtcrime.securesms.util.ThemeUtil
 import org.thoughtcrime.securesms.util.adapter.mapping.LayoutFactory
 import org.thoughtcrime.securesms.util.adapter.mapping.MappingAdapter
@@ -99,7 +100,18 @@ object RecipientPreference {
 
       val aboutText = recipient.combinedAboutAndEmoji
       if (aboutText.isNullOrEmpty()) {
-        about?.visibility = View.GONE
+        // TODO: probably should migrate to using newer pref store
+        if (TextSecurePreferences.isAlsoShowProfileName(context)) {
+          val displayName2 = recipient.getDisplayName2(context);
+          if (!displayName2.isNullOrEmpty()) {
+            about?.text = displayName2
+            about?.visibility = View.VISIBLE
+          } else {
+            about?.visibility = View.GONE
+          }
+        } else {
+          about?.visibility = View.GONE
+        }
       } else {
         about?.text = recipient.combinedAboutAndEmoji
         about?.visibility = View.VISIBLE

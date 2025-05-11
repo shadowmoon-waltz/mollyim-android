@@ -7,6 +7,7 @@ import org.thoughtcrime.securesms.components.settings.PreferenceModel
 import org.thoughtcrime.securesms.groups.GroupId
 import org.thoughtcrime.securesms.groups.v2.GroupDescriptionUtil
 import org.thoughtcrime.securesms.util.LongClickMovementMethod
+import org.thoughtcrime.securesms.util.TextSecurePreferences
 import org.thoughtcrime.securesms.util.adapter.mapping.LayoutFactory
 import org.thoughtcrime.securesms.util.adapter.mapping.MappingAdapter
 import org.thoughtcrime.securesms.util.adapter.mapping.MappingViewHolder
@@ -45,12 +46,18 @@ object GroupDescriptionPreference {
       groupDescriptionTextView.movementMethod = LongClickMovementMethod.getInstance(context)
 
       if (model.groupDescription.isNullOrEmpty()) {
-        if (model.canEditGroupAttributes) {
-          groupDescriptionTextView.setOverflowText(null)
+        groupDescriptionTextView.setOverflowText(null)
+        if (model.canEditGroupAttributes && !TextSecurePreferences.isManageGroupTweaks(context)) {
+          groupDescriptionTextView.visibility = View.VISIBLE
           groupDescriptionTextView.setText(R.string.ManageGroupActivity_add_group_description)
           groupDescriptionTextView.setOnClickListener { model.onEditGroupDescription() }
+        } else {
+          groupDescriptionTextView.visibility = View.GONE
+          groupDescriptionTextView.setText("")
+          groupDescriptionTextView.setOnClickListener(null)
         }
       } else {
+        groupDescriptionTextView.visibility = View.VISIBLE
         groupDescriptionTextView.setOnClickListener(null)
         GroupDescriptionUtil.setText(
           context,

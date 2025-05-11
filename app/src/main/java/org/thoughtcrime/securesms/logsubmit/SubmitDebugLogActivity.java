@@ -204,12 +204,12 @@ public class SubmitDebugLogActivity extends BaseActivity implements SubmitDebugL
     this.lineList.setAdapter(adapter);
     this.lineList.setItemAnimator(null);
 
-    if (KeyCachingService.isLocked()) {
+    //if (KeyCachingService.isLocked()) {
       submitButton.setText(R.string.SubmitDebugLogActivity_save);
       submitButton.setOnClickListener(v -> onSaveClicked());
-    } else {
-      submitButton.setOnClickListener(v -> onSubmitClicked());
-    }
+    //} else {
+    //  submitButton.setOnClickListener(v -> onSubmitClicked());
+    //}
 
     scrollToBottomButton.setOnClickListener(v -> lineList.scrollToPosition(adapter.getItemCount() - 1));
     scrollToTopButton.setOnClickListener(v -> lineList.scrollToPosition(0));
@@ -244,7 +244,7 @@ public class SubmitDebugLogActivity extends BaseActivity implements SubmitDebugL
     if (progressCard != null && lines.size() > 0) {
       progressCard.setVisibility(View.GONE);
 
-      warningBanner.setVisibility(View.VISIBLE);
+      //warningBanner.setVisibility(View.VISIBLE);
       submitButton.setVisibility(View.VISIBLE);
     }
 
@@ -333,6 +333,7 @@ public class SubmitDebugLogActivity extends BaseActivity implements SubmitDebugL
     builder.show();
   }
 
+  /*
   private void onSubmitClicked() {
     submitButton.setSpinning();
 
@@ -346,4 +347,5 @@ public class SubmitDebugLogActivity extends BaseActivity implements SubmitDebugL
       submitButton.cancelSpinning();
     });
   }
+  */
 }

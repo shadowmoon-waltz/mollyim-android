@@ -54,6 +54,7 @@ import androidx.annotation.ColorInt;
 import androidx.annotation.DimenRes;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.widget.AppCompatImageView;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.LifecycleOwner;
 import androidx.media3.common.MediaItem;
@@ -140,6 +141,7 @@ import org.thoughtcrime.securesms.util.PlaceholderURLSpan;
 import org.thoughtcrime.securesms.util.Projection;
 import org.thoughtcrime.securesms.util.ProjectionList;
 import org.thoughtcrime.securesms.util.SearchUtil;
+import org.thoughtcrime.securesms.util.SwipeActionTypes;
 import org.thoughtcrime.securesms.util.ThemeUtil;
 import org.thoughtcrime.securesms.util.UrlClickHandler;
 import org.thoughtcrime.securesms.util.Util;
@@ -195,6 +197,8 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
   private           ConversationItemBodyBubble bodyBubble;
   private           View                       reply;
   private           View                       replyIcon;
+  private           View                       swipeToLeft;
+  private           View                       swipeToLeftIcon;
   @Nullable private ViewGroup                  contactPhotoHolder;
   @Nullable private QuoteView                  quoteView;
   private           EmojiTextView              bodyText;
@@ -331,6 +335,8 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
     this.quoteView                 = findViewById(R.id.quote_view);
     this.reply                     = findViewById(R.id.reply_icon_wrapper);
     this.replyIcon                 = findViewById(R.id.reply_icon);
+    this.swipeToLeft               = findViewById(R.id.swipe_to_left_icon_wrapper);
+    this.swipeToLeftIcon           = findViewById(R.id.swipe_to_left_icon);
     this.reactionsView             = findViewById(R.id.reactions_view);
     this.badgeImageView            = findViewById(R.id.badge);
     this.storyReactionLabelWrapper = findViewById(R.id.story_reacted_label_holder);
@@ -384,6 +390,14 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
     this.displayMode           = displayMode;
     this.previousMessage       = previousMessageRecord;
 
+    if (replyIcon != null) {
+      setSwipeIcon(((AppCompatImageView)replyIcon), SignalStore.settings().getSwipeToRightAction(), SwipeActionTypes.DEFAULT_DRAWABLE_FOR_RIGHT);
+    }
+
+    if (swipeToLeftIcon != null) {
+      setSwipeIcon(((AppCompatImageView)swipeToLeftIcon), SignalStore.settings().getSwipeToLeftAction(), SwipeActionTypes.DEFAULT_DRAWABLE_FOR_LEFT);
+    }
+
     setGutterSizes(messageRecord, groupThread);
     setMessageShape(messageRecord, previousMessageRecord, nextMessageRecord, groupThread);
     setMediaAttributes(messageRecord, previousMessageRecord, nextMessageRecord, groupThread, hasWallpaper, isMessageRequestAccepted, allowedToPlayInline);
@@ -410,6 +424,28 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
     isBound = true;
     this.author.observeForever(this);
     this.conversationRecipient.observeForever(this);
+  }
+
+  private void setSwipeIcon(final @NonNull AppCompatImageView icon, final @NonNull String action, int defaultDrawableId) {
+    if (SwipeActionTypes.REPLY.equals(action)) {
+      icon.setImageResource(R.drawable.symbol_reply_24);
+    } else if (SwipeActionTypes.DELETE.equals(action) || SwipeActionTypes.DELETE_NO_PROMPT.equals(action)) {
+      icon.setImageResource(R.drawable.ic_trash_24);
+    } else if (SwipeActionTypes.COPY_TEXT.equals(action) || SwipeActionTypes.COPY_TEXT_POPUP.equals(action)) {
+      icon.setImageResource(R.drawable.symbol_copy_android_24);
+    } else if (SwipeActionTypes.FORWARD.equals(action)) {
+      icon.setImageResource(R.drawable.symbol_forward_24);
+    } else if (SwipeActionTypes.MESSAGE_DETAILS.equals(action)) {
+      icon.setImageResource(R.drawable.symbol_info_24);
+    } else if (SwipeActionTypes.SHOW_OPTIONS.equals(action)) {
+      icon.setImageResource(R.drawable.ic_more_vert_24);
+    } else if (SwipeActionTypes.NOTE_TO_SELF.equals(action)) {
+      icon.setImageResource(R.drawable.ic_note_24);
+    } else if (SwipeActionTypes.MULTI_SELECT.equals(action)) {
+      icon.setImageResource(R.drawable.symbol_check_circle_24);
+    } else { // for SwipeActionTypes.DEFAULT, SwipeActionTypes.NONE, and any other string
+      icon.setImageResource(defaultDrawableId);
+    }
   }
 
   @Override
@@ -476,7 +512,7 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
 
   @Override
   protected void onDetachedFromWindow() {
-    ConversationSwipeAnimationHelper.update(this, 0f, 1f);
+    ConversationSwipeAnimationHelper.update(this, 0f, 1f, false);
     unbind();
     super.onDetachedFromWindow();
   }
@@ -862,8 +898,10 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
 
     if (hasWallpaper) {
       replyIcon.setBackgroundResource(R.drawable.wallpaper_message_decoration_background);
+      swipeToLeftIcon.setBackgroundResource(R.drawable.wallpaper_message_decoration_background);
     } else {
       replyIcon.setBackground(null);
+      swipeToLeftIcon.setBackground(null);
     }
   }
 
@@ -2240,6 +2278,10 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
 
   @NonNull @Override public List<View> getBubbleViews() {
     return Collections.singletonList(bodyBubble);
+  }
+
+  @Nullable @Override public View getSwipeToLeftView() {
+    return swipeToLeft;
   }
 
   @Override

@@ -280,6 +280,15 @@ class AccountValues internal constructor(store: KeyValueStore, context: Context)
     }
   }
 
+  fun setIdentityKeysManually(publicKey: ByteArray, privateKey: ByteArray) {
+    require(isPrimaryDevice) { "Must be a primary device!" }
+    store
+      .beginWrite()
+      .putBlob(KEY_ACI_IDENTITY_PUBLIC_KEY, publicKey)
+      .putBlob(KEY_ACI_IDENTITY_PRIVATE_KEY, privateKey)
+      .commit()
+  }
+
   /** When acting as a linked device, this method lets you store the identity keys sent from the primary device */
   fun setAciIdentityKeysFromPrimaryDevice(aciKeys: IdentityKeyPair) {
     synchronized(this) {
@@ -366,8 +375,11 @@ class AccountValues internal constructor(store: KeyValueStore, context: Context)
   }
 
   /** Indicates whether the user has the ability to receive FCM messages. Largely coupled to whether they have Play Service. */
-  @get:JvmName("isFcmEnabled")
-  var fcmEnabled: Boolean by booleanValue(KEY_FCM_ENABLED, false)
+  // SW: retaining non-booleanValue version of this function due to the isForceWebsocketMode check
+  var fcmEnabled: Boolean
+    @JvmName("isFcmEnabled")
+    get() = getBoolean(KEY_FCM_ENABLED, false) && !SignalStore.settings.isForceWebsocketMode()
+    set(value) = putBoolean(KEY_FCM_ENABLED, value)
 
   val canReceiveFcm: Boolean
     get() = fcmEnabled && fcmToken != null

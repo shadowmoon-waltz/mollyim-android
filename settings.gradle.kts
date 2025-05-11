@@ -130,4 +130,4 @@ project(":qr").projectDir = file("qr/lib")
 project(":video").projectDir = file("video/lib")
 //project(":video-app").projectDir = file("video/app")
 
-rootProject.name = "Molly"
+rootProject.name = "MollySW"

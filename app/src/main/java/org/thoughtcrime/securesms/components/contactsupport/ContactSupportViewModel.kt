@@ -35,14 +35,16 @@ class ContactSupportViewModel : ViewModel(), ContactSupportCallbacks {
 
   fun contactSupport(includeLogs: Boolean) {
     viewModelScope.launch {
+      /*
       if (includeLogs) {
         store.update { it.copy(showAsProgress = true) }
         submitDebugLogRepository.buildAndSubmitLog { result ->
           store.update { ContactSupportState(sendEmail = true, debugLogUrl = result.orNull()) }
         }
       } else {
+      */
         store.update { ContactSupportState(sendEmail = true) }
-      }
+      //}
     }
   }
 

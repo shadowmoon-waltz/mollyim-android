@@ -14,10 +14,6 @@ import org.signal.core.util.billing.BillingDependencies
 object BillingFactory {
   @JvmStatic
   fun create(billingDependencies: BillingDependencies, isBackupsAvailable: Boolean): BillingApi {
-    return if (isBackupsAvailable) {
-      BillingApiImpl(billingDependencies)
-    } else {
-      BillingApi.Empty
-    }
+    return BillingApi.Empty
   }
 }

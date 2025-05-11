@@ -5,10 +5,6 @@ import org.signal.donations.InAppPaymentType
 import org.signal.donations.PaymentSourceType
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.database.model.InAppPaymentReceiptRecord
-import org.thoughtcrime.securesms.keyvalue.SignalStore
-import org.thoughtcrime.securesms.util.Environment
-import org.thoughtcrime.securesms.util.LocaleRemoteConfig
-import org.thoughtcrime.securesms.util.RemoteConfig
 
 /**
  * Helper object to determine in-app donations availability.
@@ -24,68 +20,50 @@ object InAppDonations {
    * - Able to use PayPal and is in a region where it is able to be accepted.
    */
   fun hasAtLeastOnePaymentMethodAvailable(): Boolean {
-    return isCreditCardAvailable() || isPayPalAvailable() || isGooglePayAvailable() || isSEPADebitAvailable() || isIDEALAvailable()
+    return false
   }
 
   fun isDonationsPaymentSourceAvailable(paymentSourceType: PaymentSourceType, inAppPaymentType: InAppPaymentType): Boolean {
-    if (inAppPaymentType == InAppPaymentType.RECURRING_BACKUP) {
-      error("Not supported.")
-    }
-
-    return when (paymentSourceType) {
-      PaymentSourceType.PayPal -> isPayPalAvailableForDonateToSignalType(inAppPaymentType)
-      PaymentSourceType.Stripe.CreditCard -> isCreditCardAvailable()
-      PaymentSourceType.Stripe.GooglePay -> isGooglePayAvailable()
-      PaymentSourceType.Stripe.SEPADebit -> isSEPADebitAvailableForDonateToSignalType(inAppPaymentType)
-      PaymentSourceType.Stripe.IDEAL -> isIDEALAvailbleForDonateToSignalType(inAppPaymentType)
-      PaymentSourceType.GooglePlayBilling -> false
-      PaymentSourceType.Unknown -> false
-    }
+    return false
   }
 
   private fun isPayPalAvailableForDonateToSignalType(inAppPaymentType: InAppPaymentType): Boolean {
-    return when (inAppPaymentType) {
-      InAppPaymentType.UNKNOWN -> error("Unsupported type UNKNOWN")
-      InAppPaymentType.ONE_TIME_DONATION -> true
-      InAppPaymentType.ONE_TIME_GIFT -> true
-      InAppPaymentType.RECURRING_DONATION -> true
-      InAppPaymentType.RECURRING_BACKUP -> false
-    } && !LocaleRemoteConfig.isPayPalDisabled()
+    return false
   }
 
   /**
    * Whether the user is in a region that supports credit cards, based off local phone number.
    */
   fun isCreditCardAvailable(): Boolean {
-    return !LocaleRemoteConfig.isCreditCardDisabled()
+    return false
   }
 
   /**
    * Whether the user is in a region that supports PayPal, based off local phone number.
    */
   fun isPayPalAvailable(): Boolean {
-    return !LocaleRemoteConfig.isPayPalDisabled()
+    return false
   }
 
   /**
    * Whether the user is using a device that supports GooglePay, based off Wallet API and phone number.
    */
   fun isGooglePayAvailable(): Boolean {
-    return SignalStore.inAppPayments.isGooglePayReady && !LocaleRemoteConfig.isGooglePayDisabled()
+    return false
   }
 
   /**
    * Whether the user is in a region which supports SEPA Debit transfers, based off local phone number.
    */
   fun isSEPADebitAvailable(): Boolean {
-    return Environment.IS_STAGING || (RemoteConfig.sepaDebitDonations && LocaleRemoteConfig.isSepaEnabled())
+    return false
   }
 
   /**
    * Whether the user is in a region which supports IDEAL transfers, based off local phone number.
    */
   fun isIDEALAvailable(): Boolean {
-    return Environment.IS_STAGING || (RemoteConfig.idealDonations && LocaleRemoteConfig.isIdealEnabled())
+    return false
   }
 
   /**
@@ -93,7 +71,7 @@ object InAppDonations {
    * and donation type.
    */
   fun isSEPADebitAvailableForDonateToSignalType(inAppPaymentType: InAppPaymentType): Boolean {
-    return inAppPaymentType != InAppPaymentType.ONE_TIME_GIFT && isSEPADebitAvailable()
+    return false
   }
 
   /**
@@ -101,7 +79,7 @@ object InAppDonations {
    * donation type
    */
   fun isIDEALAvailbleForDonateToSignalType(inAppPaymentType: InAppPaymentType): Boolean {
-    return inAppPaymentType != InAppPaymentType.ONE_TIME_GIFT && isIDEALAvailable()
+    return false
   }
 
   /**

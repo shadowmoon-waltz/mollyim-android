@@ -174,6 +174,42 @@ public class TextSecurePreferences {
     setStringPreference(context, GOOGLE_MAP_TYPE, value);
   }
 
+  private static final String PREF_SHOW_REACTION_TIME = "pref_show_reaction_time";
+
+  private static final String PREF_FORCE_WEBSOCKET_MODE = "pref_force_websocket_mode";
+
+  private static final String PREF_FAST_CUSTOM_REACTION_CHANGE = "pref_fast_custom_reaction_change";
+
+  private static final String PREF_COPY_TEXT_OPENS_POPUP = "pref_copy_text_opens_popup";
+
+  private static final String PREF_CONVERSATION_DELETE_IN_MENU = "pref_conversation_delete_in_menu";
+
+  private static final String PREF_SWIPE_TO_RIGHT_ACTION = "pref_swipe_to_right_action";
+
+  private static final String PREF_RANGE_MULTI_SELECT = "pref_range_multi_select";
+
+  private static final String PREF_LONG_PRESS_MULTI_SELECT = "pref_long_press_multi_select";
+
+  private static final String PREF_ALSO_SHOW_PROFILE_NAME = "pref_also_show_profile_name";
+
+  private static final String PREF_MANAGE_GROUP_TWEAKS = "pref_manage_group_tweaks";
+
+  private static final String PREF_SWIPE_TO_LEFT_ACTION = "pref_swipe_to_left_action";
+
+  private static final String PREF_TRASH_NO_PROMPT_FOR_ME = "pref_trash_no_prompt_for_me";
+
+  private static final String PREF_PROMPT_MP4_AS_GIF = "pref_prompt_mp4_as_gif";
+
+  private static final String PREF_BACKUP_INTERVAL_IN_DAYS = "pref_backup_interval_in_days";
+
+  private static final String PREF_ALT_COLLAPSE_MEDIA_KEYBOARD = "pref_alt_collapse_media_keyboard";
+
+  private static final String PREF_ALT_CLOSE_MEDIA_SELECTION = "pref_alt_close_media_selection";
+
+  private static final String PREF_STICKER_MRU_LONG_PRESS_TO_PACK = "pref_sticker_mru_long_press_to_pack";
+
+  private static final String PREF_STICKER_KEYBOARD_PACK_MRU = "pref_sticker_keyboard_pack_mru";
+
   private static final String[] booleanPreferencesToBackup = {SCREEN_SECURITY_PREF,
                                                               INCOGNITO_KEYBORAD_PREF,
                                                               ALWAYS_RELAY_CALLS_PREF,
@@ -188,7 +224,22 @@ public class TextSecurePreferences {
                                                               CALL_VIBRATE_PREF,
                                                               NEW_CONTACTS_NOTIFICATIONS,
                                                               SYSTEM_EMOJI_PREF,
-                                                              ENTER_SENDS_PREF};
+                                                              ENTER_SENDS_PREF,
+                                                              PREF_SHOW_REACTION_TIME,
+                                                              PREF_FORCE_WEBSOCKET_MODE,
+                                                              PREF_FAST_CUSTOM_REACTION_CHANGE,
+                                                              PREF_COPY_TEXT_OPENS_POPUP,
+                                                              PREF_CONVERSATION_DELETE_IN_MENU,
+                                                              PREF_RANGE_MULTI_SELECT,
+                                                              PREF_LONG_PRESS_MULTI_SELECT,
+                                                              PREF_ALSO_SHOW_PROFILE_NAME,
+                                                              PREF_MANAGE_GROUP_TWEAKS,
+                                                              PREF_TRASH_NO_PROMPT_FOR_ME,
+                                                              PREF_PROMPT_MP4_AS_GIF,
+                                                              PREF_ALT_COLLAPSE_MEDIA_KEYBOARD,
+                                                              PREF_ALT_CLOSE_MEDIA_SELECTION,
+                                                              PREF_STICKER_MRU_LONG_PRESS_TO_PACK,
+                                                              PREF_STICKER_KEYBOARD_PACK_MRU};
 
   private static final String[] stringPreferencesToBackup = {LED_COLOR_PREF,
                                                              LED_BLINK_PREF,
@@ -196,7 +247,10 @@ public class TextSecurePreferences {
                                                              NOTIFICATION_PRIVACY_PREF,
                                                              THEME_PREF,
                                                              LANGUAGE_PREF,
-                                                             MESSAGE_BODY_TEXT_SIZE_PREF};
+                                                             MESSAGE_BODY_TEXT_SIZE_PREF,
+                                                             PREF_SWIPE_TO_RIGHT_ACTION,
+                                                             PREF_SWIPE_TO_LEFT_ACTION,
+                                                             PREF_BACKUP_INTERVAL_IN_DAYS};
 
   private static final String[] stringSetPreferencesToBackup = {MEDIA_DOWNLOAD_MOBILE_PREF,
                                                                 MEDIA_DOWNLOAD_WIFI_PREF,
@@ -731,6 +785,16 @@ public class TextSecurePreferences {
     return getBooleanPreference(context, SCREEN_SECURITY_PREF, true);
   }
 
+  private static boolean tempScreenSecurity = false;
+
+  public static boolean isScreenSecurityEnabled2(Context context) {
+    return (tempScreenSecurity || getBooleanPreference(context, SCREEN_SECURITY_PREF, false));
+  }
+
+  public static void setTempScreenSecurity(boolean b) {
+    tempScreenSecurity = b;
+  }
+
   public static int getLastVersionCodeForMolly(Context context) {
     return getIntegerPreference(context, LAST_VERSION_CODE_PREF, BuildConfig.VERSION_CODE);
   }
@@ -1000,6 +1064,157 @@ public class TextSecurePreferences {
 
   public static void setHasSeenVideoRecordingTooltip(Context context, boolean value) {
     setBooleanPreference(context, HAS_SEEN_VIDEO_RECORDING_TOOLTIP, value);
+  }
+
+  public static boolean isShowReactionTimeEnabled(Context context) {
+    return getBooleanPreference(context, PREF_SHOW_REACTION_TIME, false);
+  }
+
+  public static void setShowReactionTimeEnabled(Context context, boolean enabled) {
+    setBooleanPreference(context, PREF_SHOW_REACTION_TIME, enabled);
+  }
+
+  public static boolean isForceWebsocketMode(Context context) {
+    return getBooleanPreference(context, PREF_FORCE_WEBSOCKET_MODE, false);
+  }
+
+  public static void setForceWebsocketMode(Context context, boolean enabled) {
+    setBooleanPreference(context, PREF_FORCE_WEBSOCKET_MODE, enabled);
+  }
+
+  public static boolean isFastCustomReactionChange(Context context) {
+    return getBooleanPreference(context, PREF_FAST_CUSTOM_REACTION_CHANGE, false);
+  }
+
+  public static void setFastCustomReactionChange(Context context, boolean enabled) {
+    setBooleanPreference(context, PREF_FAST_CUSTOM_REACTION_CHANGE, enabled);
+  }
+
+  public static boolean isCopyTextOpensPopup(Context context) {
+    return getBooleanPreference(context, PREF_COPY_TEXT_OPENS_POPUP, false);
+  }
+
+  public static void setCopyTextOpensPopup(Context context, boolean enabled) {
+    setBooleanPreference(context, PREF_COPY_TEXT_OPENS_POPUP, enabled);
+  }
+
+  public static boolean isConversationDeleteInMenu(Context context) {
+    return getBooleanPreference(context, PREF_CONVERSATION_DELETE_IN_MENU, false);
+  }
+
+  public static void setConversationDeleteInMenu(Context context, boolean enabled) {
+    setBooleanPreference(context, PREF_CONVERSATION_DELETE_IN_MENU, enabled);
+  }
+
+  public static String getSwipeToRightAction(Context context) {
+    return getStringPreference(context, PREF_SWIPE_TO_RIGHT_ACTION, SwipeActionTypes.DEFAULT);
+  }
+
+  public static void setSwipeToRightAction(Context context, String swipeToRightAction) {
+    setStringPreference(context, PREF_SWIPE_TO_RIGHT_ACTION, swipeToRightAction);
+  }
+
+  public static boolean isRangeMultiSelect(Context context) {
+    return getBooleanPreference(context, PREF_RANGE_MULTI_SELECT, false);
+  }
+
+  public static void setRangeMultiSelect(Context context, boolean enabled) {
+    setBooleanPreference(context, PREF_RANGE_MULTI_SELECT, enabled);
+  }
+
+  public static boolean isLongPressMultiSelect(Context context) {
+    return getBooleanPreference(context, PREF_LONG_PRESS_MULTI_SELECT, false);
+  }
+
+  public static void setLongPressMultiSelect(Context context, boolean enabled) {
+    setBooleanPreference(context, PREF_LONG_PRESS_MULTI_SELECT, enabled);
+  }
+
+  public static boolean isAlsoShowProfileName(Context context) {
+    return getBooleanPreference(context, PREF_ALSO_SHOW_PROFILE_NAME, false);
+  }
+
+  public static void setAlsoShowProfileName(Context context, boolean enabled) {
+    setBooleanPreference(context, PREF_ALSO_SHOW_PROFILE_NAME, enabled);
+  }
+
+  public static boolean isManageGroupTweaks(Context context) {
+    return getBooleanPreference(context, PREF_MANAGE_GROUP_TWEAKS, false);
+  }
+
+  public static void setManageGroupTweaks(Context context, boolean enabled) {
+    setBooleanPreference(context, PREF_MANAGE_GROUP_TWEAKS, enabled);
+  }
+
+  public static String getSwipeToLeftAction(Context context) {
+    return getStringPreference(context, PREF_SWIPE_TO_LEFT_ACTION, SwipeActionTypes.DEFAULT);
+  }
+
+  public static void setSwipeToLeftAction(Context context, String swipeToLeftAction) {
+    setStringPreference(context, PREF_SWIPE_TO_LEFT_ACTION, swipeToLeftAction);
+  }
+
+  public static boolean isTrashNoPromptForMe(Context context) {
+    return getBooleanPreference(context, PREF_TRASH_NO_PROMPT_FOR_ME, false);
+  }
+
+  public static void setTrashNoPromptForMe(Context context, boolean enabled) {
+    setBooleanPreference(context, PREF_TRASH_NO_PROMPT_FOR_ME, enabled);
+  }
+
+  public static boolean isPromptMp4AsGif(Context context) {
+    return getBooleanPreference(context, PREF_PROMPT_MP4_AS_GIF, false);
+  }
+
+  public static void setPromptMp4AsGif(Context context, boolean enabled) {
+    setBooleanPreference(context, PREF_PROMPT_MP4_AS_GIF, enabled);
+  }
+
+  public static int getBackupIntervalInDays(Context context) {
+    String s = getStringPreference(context, PREF_BACKUP_INTERVAL_IN_DAYS, null);
+    if (s != null) {
+      try {
+        return Integer.parseInt(s);
+      } catch (Throwable e) { }
+    }
+    return 1;
+  }
+
+  public static boolean isAltCollapseMediaKeyboard(Context context) {
+    return getBooleanPreference(context, PREF_ALT_COLLAPSE_MEDIA_KEYBOARD, false);
+  }
+
+  public static void setAltCollapseMediaKeyboard(Context context, boolean enabled) {
+    setBooleanPreference(context, PREF_ALT_COLLAPSE_MEDIA_KEYBOARD, enabled);
+  }
+
+  public static void setBackupIntervalInDays(Context context, int backupIntervalInDays) {
+    int days = (backupIntervalInDays > 1) ? backupIntervalInDays : 1;
+    setStringPreference(context, PREF_BACKUP_INTERVAL_IN_DAYS, Integer.toString(days));
+  }
+
+  public static boolean isAltCloseMediaSelection(Context context) {
+    return getBooleanPreference(context, PREF_ALT_CLOSE_MEDIA_SELECTION, false);
+  }
+
+  public static void setAltCloseMediaSelection(Context context, boolean enabled) {
+    setBooleanPreference(context, PREF_ALT_CLOSE_MEDIA_SELECTION, enabled);
+  }
+
+  public static boolean isStickerMruLongPressToPack(Context context) {
+    return getBooleanPreference(context, PREF_STICKER_MRU_LONG_PRESS_TO_PACK, false);
+  }
+
+  public static void setStickerMruLongPressToPack(Context context, boolean enabled) {
+    setBooleanPreference(context, PREF_STICKER_MRU_LONG_PRESS_TO_PACK, enabled);
+  }
+
+  public static boolean isStickerKeyboardPackMru(Context context) {
+    return getBooleanPreference(context, PREF_STICKER_KEYBOARD_PACK_MRU, false);
+  }
+
+  public static void setStickerKeyboardPackMru(Context context, boolean enabled) {
+    setBooleanPreference(context, PREF_STICKER_KEYBOARD_PACK_MRU, enabled);
   }
 
   public static void setBooleanPreference(Context context, String key, boolean value) {

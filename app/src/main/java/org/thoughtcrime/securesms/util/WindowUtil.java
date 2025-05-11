@@ -21,7 +21,7 @@ public final class WindowUtil {
 
   public static void initializeScreenshotSecurity(@NonNull Context context, @NonNull Window window) {
     boolean forceFlag = ScreenLockController.getAlwaysSetSecureFlagOnResume();
-    if (forceFlag || KeyCachingService.isLocked() || TextSecurePreferences.isScreenSecurityEnabled(context)) {
+    if (forceFlag || KeyCachingService.isLocked() || TextSecurePreferences.isScreenSecurityEnabled2(context)) {
       window.addFlags(WindowManager.LayoutParams.FLAG_SECURE);
     } else {
       window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE);

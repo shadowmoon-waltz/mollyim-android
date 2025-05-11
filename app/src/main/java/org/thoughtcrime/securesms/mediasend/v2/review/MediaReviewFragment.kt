@@ -383,6 +383,12 @@ class MediaReviewFragment : Fragment(R.layout.v2_media_review_fragment), Schedul
         }
       }
     )
+    recipientDisplay.setOnLongClickListener { _ ->
+      if (SignalStore.settings.isAltCloseMediaSelection()) {
+        callback.onPopFromReview()
+      }
+      false
+    }
   }
 
   private fun presentViewOnceToggleToast(isVideo: Boolean) {

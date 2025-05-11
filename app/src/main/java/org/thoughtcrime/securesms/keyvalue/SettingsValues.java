@@ -74,6 +74,25 @@ public final class SettingsValues extends SignalStoreValues {
   public static final int BACKUP_DEFAULT_HOUR   = 2;
   public static final int BACKUP_DEFAULT_MINUTE = 0;
 
+  public static final String SHOW_REACTION_TIMESTAMPS                = "settings.fork.show.reaction.timestamps";
+  public static final String FORCE_WEBSOCKET_MODE                    = "settings.fork.force.websocket.mode";
+  public static final String FAST_CUSTOM_REACTION_CHANGE             = "settings.fork.fast.custom.reaction.change";
+  public static final String COPY_TEXT_OPENS_POPUP                   = "settings.fork.copy.text.opens.popup";
+  public static final String CONVERSATION_DELETE_IN_MENU             = "settings.conversation.delete.in.menu";
+  public static final String SWIPE_TO_RIGHT_ACTION                   = "settings.swipe.to.right.action";
+  public static final String RANGE_MULTI_SELECT                      = "settings.range.multi.select";
+  public static final String LONG_PRESS_MULTI_SELECT                 = "settings.long.press.multi.select";
+  public static final String ALSO_SHOW_PROFILE_NAME                  = "settings.also.show.profile.name";
+  public static final String MANAGE_GROUP_TWEAKS                     = "settings.manage.group.tweaks";
+  public static final String SWIPE_TO_LEFT_ACTION                    = "settings.swipe.to.left.action";
+  public static final String TRASH_NO_PROMPT_FOR_ME                  = "settings.trash.no.prompt.for.me";
+  public static final String PROMPT_MP4_AS_GIF                       = "settings.prompt.mp4.as.gif";
+  public static final String BACKUP_INTERVAL_IN_DAYS                 = "settings.backup.interval.in.days";
+  public static final String ALT_COLLAPSE_MEDIA_KEYBOARD             = "settings.alt.collapse.media.keyboard";
+  public static final String ALT_CLOSE_MEDIA_SELECTION               = "settings.alt.close.media.selection";
+  public static final String STICKER_MRU_LONG_PRESS_TO_PACK          = "settings.sticker.mru.long.press.to.pack";
+  public static final String STICKER_KEYBOARD_PACK_MRU               = "settings.sticker.keyboard.pack.mru";
+
   private final SingleLiveEvent<String> onConfigurationSettingChanged = new SingleLiveEvent<>();
 
   SettingsValues(@NonNull KeyValueStore store, Context context) {
@@ -134,7 +153,25 @@ public final class SettingsValues extends SignalStoreValues {
                          SENT_MEDIA_QUALITY,
                          KEEP_MUTED_CHATS_ARCHIVED,
                          USE_COMPACT_NAVIGATION_BAR,
-                         THREAD_TRIM_SYNC_TO_LINKED_DEVICES);
+                         THREAD_TRIM_SYNC_TO_LINKED_DEVICES,
+                         SHOW_REACTION_TIMESTAMPS,
+                         FORCE_WEBSOCKET_MODE,
+                         FAST_CUSTOM_REACTION_CHANGE,
+                         COPY_TEXT_OPENS_POPUP,
+                         CONVERSATION_DELETE_IN_MENU,
+                         SWIPE_TO_RIGHT_ACTION,
+                         RANGE_MULTI_SELECT,
+                         LONG_PRESS_MULTI_SELECT,
+                         ALSO_SHOW_PROFILE_NAME,
+                         MANAGE_GROUP_TWEAKS,
+                         SWIPE_TO_LEFT_ACTION,
+                         TRASH_NO_PROMPT_FOR_ME,
+                         PROMPT_MP4_AS_GIF,
+                         BACKUP_INTERVAL_IN_DAYS,
+                         ALT_COLLAPSE_MEDIA_KEYBOARD,
+                         ALT_CLOSE_MEDIA_SELECTION,
+                         STICKER_MRU_LONG_PRESS_TO_PACK,
+                         STICKER_KEYBOARD_PACK_MRU);
   }
 
   public @NonNull LiveData<String> getOnConfigurationSettingChanged() {
@@ -514,6 +551,150 @@ public final class SettingsValues extends SignalStoreValues {
     } else {
       return Uri.parse(uri);
     }
+  }
+
+  public boolean isShowReactionTimestamps() {
+    return getBoolean(SHOW_REACTION_TIMESTAMPS, TextSecurePreferences.isShowReactionTimeEnabled(AppDependencies.getApplication()));
+  }
+
+  public void setShowReactionTimestamps(boolean showReactionTimestamps) {
+    putBoolean(SHOW_REACTION_TIMESTAMPS, showReactionTimestamps);
+  }
+
+  public boolean isForceWebsocketMode() {
+    return getBoolean(FORCE_WEBSOCKET_MODE, TextSecurePreferences.isForceWebsocketMode(AppDependencies.getApplication()));
+  }
+
+  public void setForceWebsocketMode(boolean forceWebsocketMode) {
+    putBoolean(FORCE_WEBSOCKET_MODE, forceWebsocketMode);
+  }
+
+  public boolean isFastCustomReactionChange() {
+    return getBoolean(FAST_CUSTOM_REACTION_CHANGE, TextSecurePreferences.isFastCustomReactionChange(AppDependencies.getApplication()));
+  }
+
+  public void setFastCustomReactionChange(boolean fastCustomReactionChange) {
+    putBoolean(FAST_CUSTOM_REACTION_CHANGE, fastCustomReactionChange);
+  }
+
+  public boolean isCopyTextOpensPopup() {
+    return getBoolean(COPY_TEXT_OPENS_POPUP, TextSecurePreferences.isCopyTextOpensPopup(AppDependencies.getApplication()));
+  }
+
+  public void setCopyTextOpensPopup(boolean copyTextOpensPopup) {
+    putBoolean(COPY_TEXT_OPENS_POPUP, copyTextOpensPopup);
+  }
+
+  public boolean isConversationDeleteInMenu() {
+    return getBoolean(CONVERSATION_DELETE_IN_MENU, TextSecurePreferences.isConversationDeleteInMenu(AppDependencies.getApplication()));
+  }
+
+  public void setConversationDeleteInMenu(boolean conversationDeleteInMenu) {
+    putBoolean(CONVERSATION_DELETE_IN_MENU, conversationDeleteInMenu);
+  }
+
+  public @NonNull String getSwipeToRightAction() {
+    return getString(SWIPE_TO_RIGHT_ACTION, TextSecurePreferences.getSwipeToRightAction(AppDependencies.getApplication()));
+  }
+
+  public void setSwipeToRightAction(@NonNull String swipeToRightAction) {
+    putString(SWIPE_TO_RIGHT_ACTION, swipeToRightAction);
+  }
+
+  public boolean isRangeMultiSelect() {
+    return getBoolean(RANGE_MULTI_SELECT, TextSecurePreferences.isRangeMultiSelect(AppDependencies.getApplication()));
+  }
+
+  public void setRangeMultiSelect(boolean rangeMultiSelect) {
+    putBoolean(RANGE_MULTI_SELECT, rangeMultiSelect);
+  }
+
+  public boolean isLongPressMultiSelect() {
+    return getBoolean(LONG_PRESS_MULTI_SELECT, TextSecurePreferences.isLongPressMultiSelect(AppDependencies.getApplication()));
+  }
+
+  public void setLongPressMultiSelect(boolean longPressMultiSelect) {
+    putBoolean(LONG_PRESS_MULTI_SELECT, longPressMultiSelect);
+  }
+
+  public boolean isAlsoShowProfileName() {
+    return getBoolean(ALSO_SHOW_PROFILE_NAME, TextSecurePreferences.isAlsoShowProfileName(AppDependencies.getApplication()));
+  }
+
+  public void setAlsoShowProfileName(boolean alsoShowProfileName) {
+    putBoolean(ALSO_SHOW_PROFILE_NAME, alsoShowProfileName);
+  }
+
+  public boolean isManageGroupTweaks() {
+    return getBoolean(MANAGE_GROUP_TWEAKS, TextSecurePreferences.isManageGroupTweaks(AppDependencies.getApplication()));
+  }
+
+  public void setManageGroupTweaks(boolean manageGroupTweaks) {
+    putBoolean(MANAGE_GROUP_TWEAKS, manageGroupTweaks);
+  }
+
+  public @NonNull String getSwipeToLeftAction() {
+    return getString(SWIPE_TO_LEFT_ACTION, TextSecurePreferences.getSwipeToLeftAction(AppDependencies.getApplication()));
+  }
+
+  public void setSwipeToLeftAction(@NonNull String swipeToLeftAction) {
+    putString(SWIPE_TO_LEFT_ACTION, swipeToLeftAction);
+  }
+
+  public boolean isTrashNoPromptForMe() {
+    return getBoolean(TRASH_NO_PROMPT_FOR_ME, TextSecurePreferences.isTrashNoPromptForMe(AppDependencies.getApplication()));
+  }
+
+  public void setTrashNoPromptForMe(boolean trashNoPromptForMe) {
+    putBoolean(TRASH_NO_PROMPT_FOR_ME, trashNoPromptForMe);
+  }
+
+  public boolean isPromptMp4AsGif() {
+    return getBoolean(PROMPT_MP4_AS_GIF, TextSecurePreferences.isPromptMp4AsGif(AppDependencies.getApplication()));
+  }
+
+  public void setPromptMp4AsGif(boolean promptMp4AsGif) {
+    putBoolean(PROMPT_MP4_AS_GIF, promptMp4AsGif);
+  }
+
+  public int getBackupIntervalInDays() {
+    return getInteger(BACKUP_INTERVAL_IN_DAYS, TextSecurePreferences.getBackupIntervalInDays(AppDependencies.getApplication()));
+  }
+
+  public void setBackupIntervalInDays(int backupIntervalInDays) {
+    putInteger(BACKUP_INTERVAL_IN_DAYS, backupIntervalInDays);
+  }
+
+  public boolean isAltCollapseMediaKeyboard() {
+    return getBoolean(ALT_COLLAPSE_MEDIA_KEYBOARD, TextSecurePreferences.isAltCollapseMediaKeyboard(AppDependencies.getApplication()));
+  }
+
+  public void setAltCollapseMediaKeyboard(boolean altCollapseMediaKeyboard) {
+    putBoolean(ALT_COLLAPSE_MEDIA_KEYBOARD, altCollapseMediaKeyboard);
+  }
+
+  public boolean isAltCloseMediaSelection() {
+    return getBoolean(ALT_CLOSE_MEDIA_SELECTION, TextSecurePreferences.isAltCloseMediaSelection(AppDependencies.getApplication()));
+  }
+
+  public void setAltCloseMediaSelection(boolean altCloseMediaSelection) {
+    putBoolean(ALT_CLOSE_MEDIA_SELECTION, altCloseMediaSelection);
+  }
+
+  public boolean isStickerMruLongPressToPack() {
+    return getBoolean(STICKER_MRU_LONG_PRESS_TO_PACK, TextSecurePreferences.isStickerMruLongPressToPack(AppDependencies.getApplication()));
+  }
+
+  public void setStickerMruLongPressToPack(boolean stickerMruLongPressToPack) {
+    putBoolean(STICKER_MRU_LONG_PRESS_TO_PACK, stickerMruLongPressToPack);
+  }
+
+  public boolean isStickerKeyboardPackMru() {
+    return getBoolean(STICKER_KEYBOARD_PACK_MRU, TextSecurePreferences.isStickerKeyboardPackMru(AppDependencies.getApplication()));
+  }
+
+  public void setStickerKeyboardPackMru(boolean stickerKeyboardPackMru) {
+    putBoolean(STICKER_KEYBOARD_PACK_MRU, stickerKeyboardPackMru);
   }
 
   public enum CensorshipCircumventionEnabled {

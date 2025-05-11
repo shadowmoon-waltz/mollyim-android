@@ -27,6 +27,7 @@ import org.signal.core.util.concurrent.LifecycleDisposable;
 import org.thoughtcrime.securesms.util.ThemeUtil;
 import org.thoughtcrime.securesms.util.WindowUtil;
 
+import java.util.Locale;
 import java.util.Objects;
 
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
@@ -35,6 +36,7 @@ public final class ReactionsBottomSheetDialogFragment extends BottomSheetDialogF
 
   private static final String ARGS_MESSAGE_ID = "reactions.args.message.id";
   private static final String ARGS_IS_MMS     = "reactions.args.is.mms";
+  private static final String ARGS_LOCALE     = "reactions.args.locale";
 
   private ViewPager2               recipientPagerView;
   private ReactionViewPagerAdapter recipientsAdapter;
@@ -43,12 +45,13 @@ public final class ReactionsBottomSheetDialogFragment extends BottomSheetDialogF
 
   private final LifecycleDisposable disposables = new LifecycleDisposable();
 
-  public static DialogFragment create(long messageId, boolean isMms) {
+  public static DialogFragment create(long messageId, boolean isMms, Locale locale) {
     Bundle         args     = new Bundle();
     DialogFragment fragment = new ReactionsBottomSheetDialogFragment();
 
     args.putLong(ARGS_MESSAGE_ID, messageId);
     args.putBoolean(ARGS_IS_MMS, isMms);
+    args.putSerializable(ARGS_LOCALE, locale);
 
     fragment.setArguments(args);
 
@@ -102,7 +105,7 @@ public final class ReactionsBottomSheetDialogFragment extends BottomSheetDialogF
     MessageId messageId = new MessageId(requireArguments().getLong(ARGS_MESSAGE_ID));
     setUpViewModel(messageId);
 
-    setUpRecipientsRecyclerView();
+    setUpRecipientsRecyclerView((Locale)requireArguments().getSerializable(ARGS_LOCALE));
     setUpTabMediator(view, savedInstanceState);
   }
 
@@ -143,8 +146,8 @@ public final class ReactionsBottomSheetDialogFragment extends BottomSheetDialogF
     }
   }
 
-  private void setUpRecipientsRecyclerView() {
-    recipientsAdapter = new ReactionViewPagerAdapter(() -> viewModel.removeReactionEmoji());
+  private void setUpRecipientsRecyclerView(Locale locale) {
+    recipientsAdapter = new ReactionViewPagerAdapter(locale, () -> viewModel.removeReactionEmoji());
 
     recipientPagerView.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
       @Override

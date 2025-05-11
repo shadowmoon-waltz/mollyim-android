@@ -68,4 +68,11 @@ public class LocalBackupListener extends PersistentAlarmManagerListener {
 
     return nextTime;
   }
+
+  public static void setNextBackupTimeToIntervalFromPrevious(@NonNull Context context, int oldInterval) {
+    int days = TextSecurePreferences.getBackupIntervalInDays(context);
+    long adjust = (days >= oldInterval) ? TimeUnit.DAYS.toMillis(days - oldInterval) : -TimeUnit.DAYS.toMillis(oldInterval - days);
+    long nextTime = TextSecurePreferences.getNextBackupTime(context) + adjust;
+    TextSecurePreferences.setNextBackupTime(context, nextTime);
+  }
 }

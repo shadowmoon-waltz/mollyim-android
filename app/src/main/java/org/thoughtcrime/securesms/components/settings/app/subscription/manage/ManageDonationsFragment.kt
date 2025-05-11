@@ -24,7 +24,6 @@ import org.thoughtcrime.securesms.components.settings.DSLConfiguration
 import org.thoughtcrime.securesms.components.settings.DSLSettingsFragment
 import org.thoughtcrime.securesms.components.settings.DSLSettingsIcon
 import org.thoughtcrime.securesms.components.settings.DSLSettingsText
-import org.thoughtcrime.securesms.components.settings.app.AppSettingsActivity
 import org.thoughtcrime.securesms.components.settings.app.subscription.DonationSerializationHelper.toFiatMoney
 import org.thoughtcrime.securesms.components.settings.app.subscription.completed.InAppPaymentsBottomSheetDelegate
 import org.thoughtcrime.securesms.components.settings.app.subscription.donate.CheckoutFlowActivity
@@ -34,7 +33,6 @@ import org.thoughtcrime.securesms.components.settings.configure
 import org.thoughtcrime.securesms.components.settings.models.IndeterminateLoadingCircle
 import org.thoughtcrime.securesms.database.model.databaseprotos.DonationErrorValue
 import org.thoughtcrime.securesms.database.model.databaseprotos.PendingOneTimeDonation
-import org.thoughtcrime.securesms.help.HelpFragment
 import org.thoughtcrime.securesms.keyvalue.SignalStore
 import org.thoughtcrime.securesms.payments.FiatMoneyUtil
 import org.thoughtcrime.securesms.subscription.Subscription
@@ -281,7 +279,6 @@ class ManageDonationsFragment :
           redemptionState = state.getMonthlyDonorRedemptionState(),
           onContactSupport = {
             requireActivity().finish()
-            requireActivity().startActivity(AppSettingsActivity.help(requireContext(), HelpFragment.DONATION_INDEX))
           },
           activeSubscription = activeSubscription,
           subscriberRequiresCancel = state.subscriberRequiresCancel,
@@ -421,10 +418,6 @@ class ManageDonationsFragment :
           .setMessage(R.string.DonationsErrors__your_badge_could_not)
           .setNegativeButton(R.string.DonationsErrors__learn_more) { _, _ ->
             CommunicationActions.openBrowserLink(requireContext(), DONATE_TROUBLESHOOTING_URL)
-          }
-          .setPositiveButton(R.string.Subscription__contact_support) { _, _ ->
-            requireActivity().finish()
-            startActivity(AppSettingsActivity.help(requireContext(), HelpFragment.DONATION_INDEX))
           }
           .setOnDismissListener {
             SignalStore.inAppPayments.setPendingOneTimeDonation(null)

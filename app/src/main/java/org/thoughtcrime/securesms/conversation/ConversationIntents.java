@@ -53,6 +53,7 @@ public class ConversationIntents {
   private static final String EXTRA_CONVERSATION_TYPE                = "conversation_type";
   private static final String INTENT_DATA                            = "intent_data";
   private static final String INTENT_TYPE                            = "intent_type";
+  private static final String EXTRA_IS_VIDEO_GIF                     = "is_video_gif";
 
   private ConversationIntents() {
   }
@@ -146,6 +147,7 @@ public class ConversationIntents {
     private final Badge                  giftBadge;
     private final long                   shareDataTimestamp;
     private final ConversationScreenType conversationScreenType;
+    private final boolean                isVideoGif;
 
     public static Args from(@NonNull Bundle arguments) {
       Uri intentDataUri = getIntentData(arguments);
@@ -164,7 +166,8 @@ public class ConversationIntents {
                         false,
                         null,
                         -1L,
-                        ConversationScreenType.BUBBLE);
+                        ConversationScreenType.BUBBLE,
+                        false);
       }
 
       return new Args(RecipientId.from(Objects.requireNonNull(arguments.getString(EXTRA_RECIPIENT))),
@@ -181,7 +184,8 @@ public class ConversationIntents {
                       arguments.getBoolean(EXTRA_WITH_SEARCH_OPEN, false),
                       arguments.getParcelable(EXTRA_GIFT_BADGE),
                       arguments.getLong(EXTRA_SHARE_DATA_TIMESTAMP, -1L),
-                      ConversationScreenType.from(arguments.getInt(EXTRA_CONVERSATION_TYPE, 0)));
+                      ConversationScreenType.from(arguments.getInt(EXTRA_CONVERSATION_TYPE, 0)),
+                      arguments.getBoolean(EXTRA_IS_VIDEO_GIF, false));
     }
 
     private Args(@NonNull RecipientId recipientId,
@@ -198,7 +202,8 @@ public class ConversationIntents {
                  boolean withSearchOpen,
                  @Nullable Badge giftBadge,
                  long shareDataTimestamp,
-                 @NonNull ConversationScreenType conversationScreenType)
+                 @NonNull ConversationScreenType conversationScreenType,
+                 boolean isVideoGif)
     {
       this.recipientId                 = recipientId;
       this.threadId                    = threadId;
@@ -216,6 +221,7 @@ public class ConversationIntents {
       this.shareDataTimestamp          = shareDataTimestamp;
       this.conversationScreenType      = conversationScreenType;
       this.draftMediaType              = SlideFactory.MediaType.from(draftContentType);
+      this.isVideoGif                  = isVideoGif;
     }
 
     public @NonNull RecipientId getRecipientId() {
@@ -293,6 +299,10 @@ public class ConversationIntents {
     public boolean canInitializeFromDatabase() {
       return draftText == null && (draftMedia == null || ConversationIntents.isBubbleIntentUri(draftMedia) || ConversationIntents.isNotificationIntentUri(draftMedia)) && draftMediaType == null;
     }
+
+    public boolean isVideoGif() {
+      return isVideoGif;
+    }
   }
 
   public final static class Builder {
@@ -314,6 +324,7 @@ public class ConversationIntents {
     private boolean                withSearchOpen;
     private Badge                  giftBadge;
     private long                   shareDataTimestamp = -1L;
+    private boolean                isVideoGif = false;
 
     private Builder(@NonNull Context context,
                     @NonNull Class<? extends Activity> conversationActivityClass,
@@ -388,6 +399,11 @@ public class ConversationIntents {
       return this;
     }
 
+    public @NonNull Builder withIsVideoGif(boolean isVideoGif) {
+      this.isVideoGif = isVideoGif;
+      return this;
+    }
+
     public @NonNull Intent build() {
       if (stickerLocator != null && media != null) {
         throw new IllegalStateException("Cannot have both sticker and media array");
@@ -416,6 +432,10 @@ public class ConversationIntents {
       intent.putExtra(EXTRA_GIFT_BADGE, giftBadge);
       intent.putExtra(EXTRA_SHARE_DATA_TIMESTAMP, shareDataTimestamp);
       intent.putExtra(EXTRA_CONVERSATION_TYPE, conversationScreenType.code);
+
+      if (isVideoGif) {
+        intent.putExtra(EXTRA_IS_VIDEO_GIF, isVideoGif);
+      }
 
       if (draftText != null) {
         intent.putExtra(EXTRA_TEXT, draftText);

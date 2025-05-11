@@ -2,6 +2,7 @@ package org.thoughtcrime.securesms.preferences;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
@@ -11,6 +12,7 @@ import android.text.method.LinkMovementMethod;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.NumberPicker;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -41,6 +43,7 @@ import org.thoughtcrime.securesms.keyvalue.SignalStore;
 import org.thoughtcrime.securesms.permissions.Permissions;
 import org.thoughtcrime.securesms.service.LocalBackupListener;
 import org.thoughtcrime.securesms.util.BackupUtil;
+import org.thoughtcrime.securesms.util.DateUtils;
 import org.thoughtcrime.securesms.util.JavaTimeExtensionsKt;
 import org.thoughtcrime.securesms.util.StorageUtil;
 import org.thoughtcrime.securesms.util.TextSecurePreferences;
@@ -66,12 +69,15 @@ public class BackupsPreferenceFragment extends Fragment {
   private TextView    info;
   private TextView    summary;
   private TextView    folderName;
-  private View        schedule;
-  private TextView    scheduleSummary;
+  //private View        schedule;
+  //private TextView    scheduleSummary;
   private View        maxFiles;
   private TextView    maxFilesSummary;
   private ProgressBar progress;
   private TextView    progressSummary;
+  private View        interval;
+  private TextView    intervalSummary;
+  private TextView    intervalNext;
 
   private final NumberFormat formatter = NumberFormat.getInstance();
 
@@ -91,19 +97,23 @@ public class BackupsPreferenceFragment extends Fragment {
     info            = view.findViewById(R.id.fragment_backup_info);
     summary         = view.findViewById(R.id.fragment_backup_create_summary);
     folderName      = view.findViewById(R.id.fragment_backup_folder_name);
-    schedule        = view.findViewById(R.id.fragment_backup_schedule);
-    scheduleSummary = view.findViewById(R.id.fragment_backup_schedule_summary);
+    //schedule        = view.findViewById(R.id.fragment_backup_schedule);
+    //scheduleSummary = view.findViewById(R.id.fragment_backup_schedule_summary);
     maxFiles        = view.findViewById(R.id.fragment_backup_max_files);
     maxFilesSummary = view.findViewById(R.id.fragment_backup_max_files_summary);
     progress        = view.findViewById(R.id.fragment_backup_progress);
     progressSummary = view.findViewById(R.id.fragment_backup_progress_summary);
+    interval        = view.findViewById(R.id.fragment_backup_interval);
+    intervalSummary = view.findViewById(R.id.fragment_backup_interval_summary);
+    intervalNext    = view.findViewById(R.id.fragment_backup_interval_next);
 
     toggle.setOnClickListener(unused -> onToggleClicked());
     create.setOnClickListener(unused -> onCreateClicked());
-    schedule.setOnClickListener(unused -> onScheduleClicked());
+    //schedule.setOnClickListener(unused -> onScheduleClicked());
     maxFiles.setOnClickListener(unused -> onMaxFilesClicked());
     verify.setOnClickListener(unused -> BackupDialog.showVerifyBackupPassphraseDialog(requireContext()));
     timer.setOnClickListener(unused -> pickTime());
+    interval.setOnClickListener(unused -> onIntervalClicked());
 
     formatter.setMinimumFractionDigits(1);
     formatter.setMaximumFractionDigits(1);
@@ -118,8 +128,10 @@ public class BackupsPreferenceFragment extends Fragment {
     setBackupStatus();
     setBackupSummary();
     setInfo();
-    setScheduleSummary();
+    //setScheduleSummary();
     setMaxFilesSummary();
+    setIntervalSummary();
+    setIntervalNext();
   }
 
   @Override
@@ -228,6 +240,7 @@ public class BackupsPreferenceFragment extends Fragment {
     info.setMovementMethod(LinkMovementMethod.getInstance());
   }
 
+  /*
   private void setScheduleSummary() {
     final long interval = TextSecurePreferences.getBackupInternal(requireContext());
 
@@ -240,6 +253,7 @@ public class BackupsPreferenceFragment extends Fragment {
       scheduleSummary.setText("");
     }
   }
+  */
 
   private void setMaxFilesSummary() {
     maxFilesSummary.setText(String.valueOf(TextSecurePreferences.getBackupMaxFiles(requireContext())));
@@ -285,6 +299,7 @@ public class BackupsPreferenceFragment extends Fragment {
     }
   }
 
+  /*
   private void onScheduleClicked() {
     new MaterialAlertDialogBuilder(requireContext())
         .setTitle(R.string.BackupsPreferenceFragment__change_schedule)
@@ -302,6 +317,7 @@ public class BackupsPreferenceFragment extends Fragment {
         .create()
         .show();
   }
+  */
 
   private void onMaxFilesClicked() {
     final View view = getLayoutInflater().inflate(R.layout.backup_max_files_selector_view, null);
@@ -369,10 +385,11 @@ public class BackupsPreferenceFragment extends Fragment {
   private void setBackupsEnabled() {
     toggle.setText(R.string.BackupsPreferenceFragment__turn_off);
     create.setVisibility(View.VISIBLE);
-    schedule.setVisibility(View.VISIBLE);
+    //schedule.setVisibility(View.VISIBLE);
     maxFiles.setVisibility(View.VISIBLE);
     verify.setVisibility(View.VISIBLE);
     timer.setVisibility(View.VISIBLE);
+    interval.setVisibility(View.VISIBLE);
     updateTimeLabel();
     setBackupFolderName();
   }
@@ -381,10 +398,62 @@ public class BackupsPreferenceFragment extends Fragment {
     toggle.setText(R.string.BackupsPreferenceFragment__turn_on);
     create.setVisibility(View.GONE);
     folder.setVisibility(View.GONE);
-    schedule.setVisibility(View.GONE);
+    //schedule.setVisibility(View.GONE);
     maxFiles.setVisibility(View.GONE);
     verify.setVisibility(View.GONE);
     timer.setVisibility(View.GONE);
+    interval.setVisibility(View.GONE);
     AppDependencies.getJobManager().cancelAllInQueue(LocalBackupJob.QUEUE);
+  }
+
+  private void setIntervalSummary() {
+    int days = SignalStore.settings().getBackupIntervalInDays();
+    intervalSummary.setText(requireContext().getResources().getQuantityString(R.plurals.fork__backup_interval_format, days, days));
+  }
+
+  private void setIntervalNext() {
+    long next = TextSecurePreferences.getNextBackupTime(requireContext());
+    intervalNext.setText(getString(R.string.fork__next_backup_format, DateUtils.getTimeString(requireContext(), Locale.getDefault(), next)));
+  }
+
+  private void onIntervalClicked() {
+    final Context context = requireContext();
+    final EditText v = new EditText(context);
+    final int days = SignalStore.settings().getBackupIntervalInDays();
+    String daysStr = (days > 1) ? Integer.toString(days) : "1";
+    v.setText(daysStr);
+    new AlertDialog.Builder(context)
+      .setTitle(R.string.fork__backup_interval_in_days)
+      .setView(v)
+      .setPositiveButton(android.R.string.ok, (d, i) -> {
+        int newDays;
+        try {
+          newDays = Integer.parseInt(v.getText().toString());
+        } catch (Throwable e) {
+          newDays = 0;
+        }
+        d.dismiss();
+        if (newDays > 0 && newDays != days) {
+          TextSecurePreferences.setBackupIntervalInDays(context, newDays);
+          SignalStore.settings().setBackupIntervalInDays(newDays);
+          if (SignalStore.settings().isBackupEnabled() && BackupUtil.canUserAccessBackupDirectory(context)) {
+           LocalBackupListener.setNextBackupTimeToIntervalFromPrevious(context, days);
+            LocalBackupListener.schedule(context);
+            setIntervalSummary();
+            setIntervalNext();
+          }
+        } else {
+          new AlertDialog.Builder(context)
+            .setMessage(R.string.fork__backup_interval_invalid)
+            .setPositiveButton(android.R.string.ok, (d2, i2) -> {
+              d2.dismiss();
+            })
+            .show();
+        }
+      })
+      .setNegativeButton(android.R.string.cancel, (d, i) -> {
+        d.dismiss();
+      })
+      .show();
   }
 }

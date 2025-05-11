@@ -16,7 +16,7 @@ import org.thoughtcrime.securesms.components.settings.app.notifications.Notifica
 import org.thoughtcrime.securesms.components.settings.app.notifications.profiles.EditNotificationProfileScheduleFragmentArgs
 import org.thoughtcrime.securesms.components.settings.app.subscription.GooglePayComponent
 import org.thoughtcrime.securesms.components.settings.app.subscription.GooglePayRepository
-import org.thoughtcrime.securesms.help.HelpFragment
+//import org.thoughtcrime.securesms.help.HelpFragment
 import org.thoughtcrime.securesms.keyvalue.SettingsValues
 import org.thoughtcrime.securesms.keyvalue.SignalStore
 import org.thoughtcrime.securesms.recipients.Recipient
@@ -52,8 +52,8 @@ class AppSettingsActivity : DSLSettingsActivity(), GooglePayComponent {
       when (StartLocation.fromCode(intent?.getIntExtra(START_LOCATION, StartLocation.HOME.code))) {
         StartLocation.HOME -> null
         StartLocation.BACKUPS -> AppSettingsFragmentDirections.actionDirectToBackupsPreferenceFragment()
-        StartLocation.HELP -> AppSettingsFragmentDirections.actionDirectToHelpFragment()
-          .setStartCategoryIndex(intent.getIntExtra(HelpFragment.START_CATEGORY_INDEX, 0))
+        //StartLocation.HELP -> AppSettingsFragmentDirections.actionDirectToHelpFragment()
+        //  .setStartCategoryIndex(intent.getIntExtra(HelpFragment.START_CATEGORY_INDEX, 0))
 
         StartLocation.PROXY -> AppSettingsFragmentDirections.actionDirectToNetworkPreferenceFragment()
         StartLocation.NOTIFICATIONS -> AppSettingsFragmentDirections.actionDirectToNotificationsSettingsFragment()
@@ -155,11 +155,11 @@ class AppSettingsActivity : DSLSettingsActivity(), GooglePayComponent {
     @JvmStatic
     fun backups(context: Context): Intent = getIntentForStartLocation(context, StartLocation.BACKUPS)
 
-    @JvmStatic
-    fun help(context: Context, startCategoryIndex: Int = 0): Intent {
-      return getIntentForStartLocation(context, StartLocation.HELP)
-        .putExtra(HelpFragment.START_CATEGORY_INDEX, startCategoryIndex)
-    }
+    //@JvmStatic
+    //fun help(context: Context, startCategoryIndex: Int = 0): Intent {
+    //  return getIntentForStartLocation(context, StartLocation.HELP)
+    //    .putExtra(HelpFragment.START_CATEGORY_INDEX, startCategoryIndex)
+    //}
 
     @JvmStatic
     fun proxy(context: Context): Intent = getIntentForStartLocation(context, StartLocation.PROXY)
@@ -242,7 +242,7 @@ class AppSettingsActivity : DSLSettingsActivity(), GooglePayComponent {
   private enum class StartLocation(val code: Int) {
     HOME(0),
     BACKUPS(1),
-    HELP(2),
+    //HELP(2),
     PROXY(3),
     NOTIFICATIONS(4),
     CHANGE_NUMBER(5),

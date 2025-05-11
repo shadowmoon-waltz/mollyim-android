@@ -391,6 +391,20 @@ private fun AppSettingsContent(
 
         item {
           Rows.TextRow(
+            text = stringResource(R.string.preferences__fork_specific),
+            icon = painterResource(R.drawable.symbol_help_24),
+            onClick = {
+              callbacks.navigate(R.id.action_appSettingsFragment_to_forkSettingsFragment)
+            }
+          )
+        }
+
+        item {
+          Dividers.Default()
+        }
+
+        item {
+          Rows.TextRow(
             text = stringResource(R.string.preferences__help),
             icon = painterResource(R.drawable.symbol_help_24),
             onClick = {

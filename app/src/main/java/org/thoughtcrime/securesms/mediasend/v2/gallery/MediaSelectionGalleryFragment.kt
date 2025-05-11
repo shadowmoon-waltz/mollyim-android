@@ -18,6 +18,7 @@ import org.thoughtcrime.securesms.mediasend.v2.MediaSelectionViewModel
 import org.thoughtcrime.securesms.mediasend.v2.MediaValidator
 import org.thoughtcrime.securesms.mediasend.v2.review.MediaSelectionItemTouchHelper
 import org.thoughtcrime.securesms.permissions.Permissions
+import org.thoughtcrime.securesms.util.MediaUtil
 
 private const val MEDIA_GALLERY_TAG = "MEDIA_GALLERY"
 
@@ -113,7 +114,9 @@ class MediaSelectionGalleryFragment : Fragment(R.layout.fragment_container), Med
   }
 
   override fun onMediaSelected(media: Media) {
-    sharedViewModel.addMedia(media)
+    MediaUtil.maybeMp4AsGif(requireContext(), media) { m ->
+      sharedViewModel.addMedia(m)
+    }
   }
 
   override fun onMediaUnselected(media: Media) {

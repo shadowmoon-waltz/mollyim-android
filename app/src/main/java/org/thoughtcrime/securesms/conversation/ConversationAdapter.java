@@ -37,6 +37,8 @@ import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.ListAdapter;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.annimon.stream.Collectors;
+import com.annimon.stream.Stream;
 import androidx.media3.common.MediaItem;
 
 import com.bumptech.glide.RequestManager;
@@ -118,6 +120,8 @@ public class ConversationAdapter
   private ConversationItemDisplayMode displayMode;
   private PulseRequest                pulseRequest;
 
+  private ConversationMessage mostRecentSelected;
+
   public ConversationAdapter(@NonNull Context context,
                       @NonNull LifecycleOwner lifecycleOwner,
                       @NonNull RequestManager requestManager,
@@ -149,6 +153,8 @@ public class ConversationAdapter
     this.hasWallpaper                 = hasWallpaper;
     this.isMessageRequestAccepted     = true;
     this.colorizer                    = colorizer;
+
+    this.mostRecentSelected           = null;
   }
 
   @Override
@@ -578,6 +584,7 @@ public class ConversationAdapter
   }
 
   public void removeFromSelection(@NonNull Set<MultiselectPart> parts) {
+    clearMostRecentSelectedIfNecessary(Stream.of(parts).map(MultiselectPart::getConversationMessage).collect(Collectors.toSet()));
     selected.removeAll(parts);
     updateSelected();
   }
@@ -586,6 +593,7 @@ public class ConversationAdapter
    * Clears all selected records from multi-select mode.
    */
   void clearSelection() {
+    mostRecentSelected = null;
     selected.clear();
     updateSelected();
   }
@@ -595,8 +603,10 @@ public class ConversationAdapter
    */
   void toggleSelection(MultiselectPart multiselectPart) {
     if (selected.contains(multiselectPart)) {
+      mostRecentSelected = null;
       selected.remove(multiselectPart);
     } else {
+      mostRecentSelected = multiselectPart.getConversationMessage();
       selected.add(multiselectPart);
     }
     updateSelected();
@@ -604,6 +614,58 @@ public class ConversationAdapter
 
   private void updateSelected() {
     notifyItemRangeChanged(0, getItemCount(), PAYLOAD_SELECTED);
+  }
+
+  void toggleFromMostRecentSelectedTo(@NonNull ConversationMessage conversationMessage) {
+    if (mostRecentSelected == null) {
+      return;
+    }
+
+    int indexOfMRS = 0;
+    int indexOfCM = 0;
+
+    final int itemCount = getItemCount();
+
+    for (; indexOfMRS < itemCount; indexOfMRS++) {
+      final ConversationMessage cm = getItem(indexOfMRS);
+      if (cm != null && cm.getMessageRecord().getId() == mostRecentSelected.getMessageRecord().getId()) {
+        break;
+      }
+    }
+
+    if (indexOfMRS == itemCount) {
+      return;
+    }
+
+    for (; indexOfCM < itemCount; indexOfCM++) {
+      final ConversationMessage cm = getItem(indexOfCM);
+      if (cm != null && cm.getMessageRecord().getId() == conversationMessage.getMessageRecord().getId()) {
+        break;
+      }
+    }
+
+    if (indexOfCM == itemCount) {
+      return;
+    }
+
+    if (indexOfMRS > indexOfCM) {
+      final int t = indexOfMRS;
+      indexOfMRS = indexOfCM;
+      indexOfCM = t;
+    }
+
+    while (indexOfMRS <= indexOfCM) {
+      selected.addAll(getItem(indexOfMRS).getMultiselectCollection().toSet());
+      indexOfMRS++;
+    }
+
+    mostRecentSelected = conversationMessage;
+  }
+
+  public void clearMostRecentSelectedIfNecessary(@Nullable final Set<ConversationMessage> conversationMessages) {
+    if (mostRecentSelected != null && conversationMessages.contains(mostRecentSelected)) {
+      mostRecentSelected = null;
+    }
   }
 
   /**

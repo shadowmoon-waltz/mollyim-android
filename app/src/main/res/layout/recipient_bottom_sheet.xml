@@ -105,6 +105,21 @@
             tools:text="Gwen Stacy" />
 
         <org.thoughtcrime.securesms.components.emoji.EmojiTextView
+            android:id="@+id/rbs_full_name2"
+            style="@style/Signal.Text.Body"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/dsl_settings_gutter"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="@dimen/dsl_settings_gutter"
+            android:textColor="?attr/signal_text_secondary"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.5"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/rbs_full_name"
+            tools:text="Gwen Stacy" />
+
+        <org.thoughtcrime.securesms.components.emoji.EmojiTextView
             android:id="@+id/rbs_about"
             style="@style/Signal.Text.BodyLarge"
             android:layout_width="match_parent"
@@ -114,7 +129,7 @@
             android:layout_marginEnd="@dimen/dsl_settings_gutter"
             android:gravity="center"
             android:textColor="?attr/signal_text_secondary"
-            app:layout_constraintTop_toBottomOf="@id/rbs_full_name"
+            app:layout_constraintTop_toBottomOf="@id/rbs_full_name2"
             tools:text="🕷🕷🕷 Hangin' on the web 🕷🕷🕷" />
 
         <TextView

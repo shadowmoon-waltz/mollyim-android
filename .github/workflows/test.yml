@@ -1,15 +1,16 @@
 name: Test
 
 on:
-  pull_request:
-  push:
-    branches:
-      - '**'
-    paths-ignore:
-      - '**/README*.md'
-      - '**/BUILDING.md'
-      - '.github/FUNDING.yml'
-      - '.github/ISSUE_TEMPLATE/**'
+  #pull_request:
+  #push:
+  #  branches:
+  #    - '**'
+  #  paths-ignore:
+  #    - '**/README*.md'
+  #    - '**/BUILDING.md'
+  #    - '.github/FUNDING.yml'
+  #    - '.github/ISSUE_TEMPLATE/**'
+  workflow_dispatch:
 
 permissions:
   contents: read # to fetch code (actions/checkout)
