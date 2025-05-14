@@ -2519,6 +2519,9 @@ class ConversationFragment :
       else if (action == SwipeActionTypes.MULTI_SELECT || action == SwipeActionTypes.SHOW_OPTIONS) {
         return actionMode == null
       }
+      else if (action == SwipeActionTypes.EDIT) {
+        return actionMode == null && MenuState.canEditMessage(conversationMessage)
+      }
       // includes SwipeActionTypes.NONE and any other string
       return false
     }
@@ -2535,6 +2538,7 @@ class ConversationFragment :
         SwipeActionTypes.MESSAGE_DETAILS -> handleDisplayDetails(conversationMessage)
         SwipeActionTypes.MULTI_SELECT -> handleEnterMultiselect(conversationMessage)
         SwipeActionTypes.SHOW_OPTIONS -> if (element is View && element is Multiselectable) clickListener.onItemLongClick2(element, element.getMultiselectPartForLatestTouch(), motionEvent)
+        SwipeActionTypes.EDIT -> handleEditMessage(conversationMessage)
         // includes SwipeActionTypes.NONE and any other string
         else -> Unit
       }

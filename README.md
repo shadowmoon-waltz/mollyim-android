@@ -7,6 +7,7 @@ Notes: Main gradle build command: assembleProdGmsWebsiteRelease. License is the 
 Changes from stock Molly/Signal:
 - whatever was in SignalSW
 - debug log is save-only/submit option disabled for now
+- swipe to left/right (from SignalSW) supports edit message as a action option
 
 <details>
 <summary>Original Molly README</summary>
