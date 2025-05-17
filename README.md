@@ -8,6 +8,7 @@ Changes from stock Molly/Signal:
 - whatever was in SignalSW
 - debug log is save-only/submit option disabled for now
 - swipe to left/right (from SignalSW) supports edit message as a action option
+- allows customizing double tap on conversation item actions (same as swipe actions with exception of option of show options)
 
 <details>
 <summary>Original Molly README</summary>
