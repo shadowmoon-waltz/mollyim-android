@@ -2,9 +2,10 @@
 
 This is a fork of Molly (itself a version of Signal), mostly small changes for my personal use. All the features (differences from upstream) of my earlier [SignalSW](https://github.com/shadowmoon-waltz/Signal-Android/blob/main/README.md) (a fork of Signal) were migrated over on 2025-05-10 (SignalSW v7.41.2-0, Molly v7.39.5-2).
 
-Notes: Main gradle build command: assembleProdGmsWebsiteRelease. License is the same as upstream projects. Website builds are built using GitHub actions and signed using my GitHub Actions-specific signing key.
+Notes: Main gradle build command: assembleProdFossWebsiteRelease. License is the same as upstream projects. Website builds are built using GitHub actions and signed using my GitHub Actions-specific signing key.
 
 Changes from stock Molly/Signal:
+- we build play services/fcm for notifications, osm for maps, arm64 only
 - whatever was in SignalSW
 - debug log is save-only/submit option disabled for now
 - swipe to left/right (from SignalSW) supports edit message as a action option

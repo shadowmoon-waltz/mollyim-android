@@ -318,6 +318,7 @@ android {
     create("website") {
       dimension = "distribution"
       isDefault = true
+      // SW: set to false
       buildConfigField("boolean", "MANAGES_MOLLY_UPDATES", "false")
     }
 
@@ -332,10 +333,11 @@ android {
 
     create("foss") {
       dimension = "license"
-      versionNameSuffix = "-FOSS"
-      buildConfigField("boolean", "USE_PLAY_SERVICES", "false")
+      // SW: we use fcm and osm
+      //versionNameSuffix = "-FOSS"
+      buildConfigField("boolean", "USE_PLAY_SERVICES", "true")
       buildConfigField("boolean", "USE_OSM", "true")
-      buildConfigField("String", "FDROID_UPDATE_URL", "\"https://molly.im/fdroid/foss/repo\"")
+      buildConfigField("String", "FDROID_UPDATE_URL", "\"\"")
     }
 
     create("prod") {
@@ -495,14 +497,19 @@ dependencies {
   implementation(libs.androidx.emoji2)
   implementation(libs.androidx.splashscreen)
   implementation(libs.androidx.webkit)
-  "gmsImplementation"(libs.firebase.messaging) {
+  // SW: our foss dimension still uses fcm
+  implementation(libs.firebase.messaging) {
     exclude(group = "com.google.firebase", module = "firebase-core")
     exclude(group = "com.google.firebase", module = "firebase-analytics")
     exclude(group = "com.google.firebase", module = "firebase-measurement-connector")
   }
   "gmsImplementation"(libs.google.play.services.maps)
   "gmsImplementation"(libs.google.play.services.auth)
-  "fossImplementation"(project(":libfakegms"))
+  // SW: our foss dimension still uses fcm
+  "fossImplementation"(libs.google.play.services.auth) {
+    exclude(group = "com.google.android.gms", module = "play-services-maps")
+  }
+  //"fossImplementation"(project(":libfakegms"))
   implementation(libs.bundles.media3)
   implementation(libs.conscrypt.android)
   implementation(libs.signal.aesgcmprovider)
@@ -539,7 +546,10 @@ dependencies {
   implementation(libs.accompanist.drawablepainter)
   implementation(libs.kotlin.stdlib.jdk8)
   implementation(libs.kotlin.reflect)
-  "gmsImplementation"(libs.kotlinx.coroutines.play.services)
+  // SW: our foss dimension still uses fcm
+  implementation(libs.kotlinx.coroutines.play.services) {
+    exclude(group = "com.google.android.gms", module = "play-services-maps")
+  }
   implementation(libs.kotlinx.coroutines.rx3)
   implementation(libs.jackson.module.kotlin)
   implementation(libs.rxjava3.rxandroid)
