@@ -43,6 +43,22 @@
             app:popEnterAnim="@anim/nav_default_pop_enter_anim"
             app:popExitAnim="@anim/nav_default_pop_exit_anim" />
 
+        <action
+            android:id="@+id/go_to_linkViaQr"
+            app:destination="@id/linkViaQr"
+            app:enterAnim="@anim/nav_default_enter_anim"
+            app:exitAnim="@anim/nav_default_exit_anim"
+            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+
+        <action
+            android:id="@+id/action_editProxy"
+            app:destination="@+id/networkPreferenceFragment"
+            app:enterAnim="@anim/nav_default_enter_anim"
+            app:exitAnim="@anim/nav_default_exit_anim"
+            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+
     </fragment>
 
     <fragment
@@ -79,6 +95,11 @@
             app:popExitAnim="@anim/nav_default_pop_exit_anim"
             app:popUpTo="@+id/welcomeFragment"
             app:popUpToInclusive="true" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/linkViaQr"
+        android:name="org.thoughtcrime.securesms.registrationv3.ui.link.RegisterLinkDeviceQrFragment">
     </fragment>
 
     <fragment
@@ -159,7 +180,7 @@
 
         <action
             android:id="@+id/action_editProxy"
-            app:destination="@+id/edit_proxy"
+            app:destination="@+id/networkPreferenceFragment"
             app:enterAnim="@anim/nav_default_enter_anim"
             app:exitAnim="@anim/nav_default_exit_anim"
             app:popEnterAnim="@anim/nav_default_pop_enter_anim"
@@ -196,6 +217,14 @@
         <action
             android:id="@+id/go_to_enterBackupKey"
             app:destination="@id/enterBackupKey"
+            app:enterAnim="@anim/nav_default_enter_anim"
+            app:exitAnim="@anim/nav_default_exit_anim"
+            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+
+        <action
+            android:id="@+id/go_to_linkViaQr"
+            app:destination="@id/linkViaQr"
             app:enterAnim="@anim/nav_default_enter_anim"
             app:exitAnim="@anim/nav_default_exit_anim"
             app:popEnterAnim="@anim/nav_default_pop_enter_anim"
@@ -318,5 +347,10 @@
         app:popExitAnim="@anim/nav_default_pop_exit_anim"
         app:popUpTo="@id/welcomeFragment"
         app:popUpToInclusive="true" />
+
+    <fragment
+        android:id="@+id/networkPreferenceFragment"
+        android:name="org.thoughtcrime.securesms.preferences.NetworkPreferenceFragment"
+        android:label="NetworkPreferenceFragment" />
 
 </navigation>
