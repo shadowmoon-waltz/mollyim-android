@@ -1186,6 +1186,11 @@
         android:exported="false"/>
 
     <service
+        android:name=".service.BackupMediaRestoreService"
+        android:foregroundServiceType="dataSync"
+        android:exported="false"/>
+
+    <service
         android:name=".gcm.FcmFetchBackgroundService"
         android:exported="false"/>
 

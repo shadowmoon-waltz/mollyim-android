@@ -2,6 +2,7 @@ package org.thoughtcrime.securesms.database
 
 import android.content.Context
 import android.database.Cursor
+import androidx.core.content.contentValuesOf
 import org.greenrobot.eventbus.EventBus
 import org.signal.core.util.StreamUtil
 import org.signal.core.util.delete
@@ -98,23 +99,37 @@ class StickerTable(
   fun insertSticker(sticker: IncomingSticker, dataStream: InputStream, notify: Boolean) {
     val fileInfo: FileInfo = saveStickerImage(dataStream)
 
-    writableDatabase
-      .insertInto(TABLE_NAME)
-      .values(
-        PACK_ID to sticker.packId,
-        PACK_KEY to sticker.packKey,
-        PACK_TITLE to sticker.packTitle,
-        PACK_AUTHOR to sticker.packAuthor,
-        STICKER_ID to sticker.stickerId,
-        EMOJI to sticker.emoji,
-        CONTENT_TYPE to sticker.contentType,
-        COVER to if (sticker.isCover) 1 else 0,
-        INSTALLED to if (sticker.isInstalled) 1 else 0,
-        FILE_PATH to fileInfo.file.absolutePath,
-        FILE_LENGTH to fileInfo.length,
-        FILE_RANDOM to fileInfo.random
-      )
-      .run(SQLiteDatabase.CONFLICT_REPLACE)
+    val values = contentValuesOf(
+      PACK_ID to sticker.packId,
+      PACK_KEY to sticker.packKey,
+      PACK_TITLE to sticker.packTitle,
+      PACK_AUTHOR to sticker.packAuthor,
+      STICKER_ID to sticker.stickerId,
+      EMOJI to sticker.emoji,
+      CONTENT_TYPE to sticker.contentType,
+      COVER to if (sticker.isCover) 1 else 0,
+      INSTALLED to if (sticker.isInstalled) 1 else 0,
+      FILE_PATH to fileInfo.file.absolutePath,
+      FILE_LENGTH to fileInfo.length,
+      FILE_RANDOM to fileInfo.random
+    )
+
+    var updated = false
+    if (sticker.isCover) {
+      // Archive restore inserts cover rows without a sticker id, try to update first on a reduced uniqueness constraint
+      updated = writableDatabase
+        .update(TABLE_NAME)
+        .values(values)
+        .where("$PACK_ID = ? AND $COVER = 1", sticker.packId)
+        .run() > 0
+    }
+
+    if (!updated) {
+      writableDatabase
+        .insertInto(TABLE_NAME)
+        .values(values)
+        .run(SQLiteDatabase.CONFLICT_REPLACE)
+    }
 
     notifyStickerListeners()
 
@@ -484,7 +499,7 @@ class StickerTable(
     }
   }
 
-  class StickerPackRecordReader(private val cursor: Cursor, private val filter: Set<Pair<String, String>>? = null) : Closeable {
+  class StickerPackRecordReader(private val cursor: Cursor, private val filter: Set<Pair<String, String>>? = null) : Closeable, Iterable<StickerPackRecord> {
 
     fun getNext(): StickerPackRecord? {
       if (!cursor.moveToNext()) {
@@ -524,6 +539,20 @@ class StickerTable(
 
     override fun close() {
       cursor.close()
+    }
+
+    override fun iterator(): Iterator<StickerPackRecord> {
+      return ReaderIterator()
+    }
+
+    private inner class ReaderIterator : Iterator<StickerPackRecord> {
+      override fun hasNext(): Boolean {
+        return cursor.count != 0 && !cursor.isLast
+      }
+
+      override fun next(): StickerPackRecord {
+        return getNext() ?: throw NoSuchElementException()
+      }
     }
   }
 }

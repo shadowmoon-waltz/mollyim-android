@@ -73,6 +73,7 @@ import org.thoughtcrime.securesms.components.contactsupport.ContactSupportViewMo
 import org.thoughtcrime.securesms.components.contactsupport.SendSupportEmailEffect
 import org.thoughtcrime.securesms.conversation.v2.registerForLifecycle
 import org.thoughtcrime.securesms.keyvalue.SignalStore
+import org.thoughtcrime.securesms.registration.util.RegistrationUtil
 import org.thoughtcrime.securesms.registrationv3.ui.shared.RegistrationScreen
 import org.thoughtcrime.securesms.registrationv3.ui.shared.RegistrationScreenTitleSubtitle
 import org.thoughtcrime.securesms.util.DateUtils
@@ -118,6 +119,7 @@ class RemoteRestoreActivity : PassphraseRequiredActivity() {
           .firstOrNull()
 
         if (restored != null) {
+          RegistrationUtil.maybeMarkRegistrationComplete()
           startActivity(MainActivity.clearTop(this@RemoteRestoreActivity))
           finishAffinity()
         }
@@ -290,6 +292,7 @@ private fun BackupAvailableContent(
   }
 
   RegistrationScreen(
+    menu = null,
     topContent = {
       if (state.backupTier != null) {
         RegistrationScreenTitleSubtitle(
@@ -362,7 +365,7 @@ private fun BackupAvailableContent(
       }
 
       Text(
-        text = stringResource(R.string.RemoteRestoreActivity__if_you_choose_not_to_restore),
+        text = stringResource(R.string.RemoteRestoreActivity__your_media_will_restore_in_the_background),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.secondary,
         modifier = Modifier.padding(top = 16.dp)
@@ -376,7 +379,7 @@ private fun BackupAvailableContent(
       )
 
       Text(
-        text = stringResource(R.string.RemoteRestoreActivity__if_you_choose_not_to_restore),
+        text = stringResource(R.string.RemoteRestoreActivity__your_media_will_restore_in_the_background),
         style = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Center),
         color = MaterialTheme.colorScheme.onSurfaceVariant
       )

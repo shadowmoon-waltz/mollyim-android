@@ -510,7 +510,7 @@ class ConversationRepository(
       }
 
       if (messageRecord.isViewOnceMessage()) {
-        val attachment = TombstoneAttachment(MediaUtil.VIEW_ONCE, true)
+        val attachment = TombstoneAttachment.forQuote()
         slideDeck = SlideDeck()
         slideDeck.addSlide(MediaUtil.getSlideForAttachment(attachment))
       }

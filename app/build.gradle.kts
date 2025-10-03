@@ -8,8 +8,8 @@ plugins {
   id("molly")
 }
 
-val canonicalVersionCode = 1576
-val canonicalVersionName = "7.53.5"
+val canonicalVersionCode = 1588
+val canonicalVersionName = "7.56.10"
 val currentHotfixVersion = 1
 val maxHotfixVersions = 100
 val mollyRevision = 1
@@ -409,8 +409,15 @@ android {
 
   androidComponents {
     beforeVariants { variant ->
-      val selected = variant.name in selectableVariants
-      if (!(selected && buildVariants.toRegex().containsMatchIn(variant.name))) {
+      val isSelected = variant.name in selectableVariants
+      val matchesBuild = buildVariants.toRegex().containsMatchIn(variant.name)
+
+      if (isSelected && matchesBuild) {
+        // MOLLY: Disable unit tests for non-debug builds
+        if (variant.buildType != "debug") {
+          (variant as com.android.build.api.variant.HasUnitTestBuilder).enableUnitTest = false
+        }
+      } else {
         variant.enable = false
       }
     }
@@ -562,7 +569,6 @@ dependencies {
   implementation(project(":libnetcipher"))
   implementation(libs.molly.argon2) { artifact { type = "aar" } }
   implementation(libs.molly.native.utils)
-  implementation(libs.molly.glide.webp.decoder)
   implementation(libs.gosimple.nbvcxz)
   "fossImplementation"(libs.osmdroid.android)
   implementation(libs.unifiedpush.connector) {
@@ -602,6 +608,9 @@ dependencies {
   testImplementation(testFixtures(project(":libsignal-service")))
   testImplementation(testLibs.espresso.core)
   testImplementation(testLibs.kotlinx.coroutines.test)
+  testImplementation(libs.androidx.compose.ui.test.junit4)
+
+  debugImplementation(libs.androidx.compose.ui.test.manifest)
 
   androidTestImplementation(platform(libs.androidx.compose.bom))
   androidTestImplementation(libs.androidx.compose.ui.test.junit4)

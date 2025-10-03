@@ -50,6 +50,7 @@ class CopyAttachmentToArchiveJob private constructor(private val attachmentId: A
       .setMaxAttempts(Parameters.UNLIMITED)
       .setQueue(UploadAttachmentToArchiveJob.QUEUES.random())
       .setQueuePriority(Parameters.PRIORITY_HIGH)
+      .setGlobalPriority(Parameters.PRIORITY_LOW)
       .build()
   )
 
@@ -103,6 +104,12 @@ class CopyAttachmentToArchiveJob private constructor(private val attachmentId: A
       return Result.success()
     }
 
+    if (SignalDatabase.messages.isViewOnce(attachment.mmsId)) {
+      Log.i(TAG, "[$attachmentId] Attachment is view-once. Resetting transfer state to none and skipping.")
+      SignalDatabase.attachments.setArchiveTransferState(attachmentId, AttachmentTable.ArchiveTransferState.NONE)
+      return Result.success()
+    }
+
     if (SignalDatabase.messages.willMessageExpireBeforeCutoff(attachment.mmsId)) {
       Log.i(TAG, "[$attachmentId] Message will expire in less than 24 hours. Resetting transfer state to none and skipping.")
       SignalDatabase.attachments.setArchiveTransferState(attachmentId, AttachmentTable.ArchiveTransferState.NONE)
@@ -139,6 +146,12 @@ class CopyAttachmentToArchiveJob private constructor(private val attachmentId: A
 
       is NetworkResult.StatusCodeError -> {
         when (archiveResult.code) {
+          400 -> {
+            Log.w(TAG, "[$attachmentId] Something is invalid about our request. Possibly the length. Scheduling a re-upload. Body: ${archiveResult.exception.stringBody}")
+            SignalDatabase.attachments.setArchiveTransferState(attachmentId, AttachmentTable.ArchiveTransferState.NONE)
+            AppDependencies.jobManager.add(UploadAttachmentToArchiveJob(attachmentId, canReuseUpload = false))
+            Result.success()
+          }
           403 -> {
             Log.w(TAG, "[$attachmentId] Insufficient permissions to upload. Handled in parent handler.")
             Result.success()
@@ -186,7 +199,7 @@ class CopyAttachmentToArchiveJob private constructor(private val attachmentId: A
       Log.d(TAG, "[$attachmentId] Updating archive transfer state to ${AttachmentTable.ArchiveTransferState.FINISHED}")
       SignalDatabase.attachments.setArchiveTransferState(attachmentId, AttachmentTable.ArchiveTransferState.FINISHED)
 
-      if (!isCanceled) {
+      if (!isCanceled && !attachment.quote) {
         ArchiveThumbnailUploadJob.enqueueIfNecessary(attachmentId)
       } else {
         Log.d(TAG, "[$attachmentId] Refusing to enqueue thumb for canceled upload.")
