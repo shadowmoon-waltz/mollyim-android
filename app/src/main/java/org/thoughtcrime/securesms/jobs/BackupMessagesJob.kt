@@ -5,11 +5,14 @@
 
 package org.thoughtcrime.securesms.jobs
 
+import android.Manifest
 import android.app.Notification
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.pm.PackageManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import org.signal.core.util.PendingIntentFlags
 import org.signal.core.util.Stopwatch
 import org.signal.core.util.isNotNullOrBlank
@@ -20,11 +23,13 @@ import org.signal.libsignal.net.SvrBStoreResponse
 import org.signal.protos.resumableuploads.ResumableUpload
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.backup.ArchiveUploadProgress
-import org.thoughtcrime.securesms.backup.v2.ArchiveMediaItemIterator
 import org.thoughtcrime.securesms.backup.v2.ArchiveRestoreProgress
 import org.thoughtcrime.securesms.backup.v2.ArchiveValidator
 import org.thoughtcrime.securesms.backup.v2.BackupRepository
 import org.thoughtcrime.securesms.backup.v2.ResumableMessagesBackupUploadSpec
+import org.thoughtcrime.securesms.backup.v2.util.ArchiveAttachmentInfo
+import org.thoughtcrime.securesms.backup.v2.util.getAllReferencedArchiveAttachmentInfos
+import org.thoughtcrime.securesms.database.BackupMediaSnapshotTable
 import org.thoughtcrime.securesms.database.SignalDatabase
 import org.thoughtcrime.securesms.dependencies.AppDependencies
 import org.thoughtcrime.securesms.jobmanager.Job
@@ -39,8 +44,10 @@ import org.thoughtcrime.securesms.notifications.NotificationIds
 import org.thoughtcrime.securesms.providers.BlobProvider
 import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.storage.StorageSyncHelper
+import org.thoughtcrime.securesms.util.MediaUtil
 import org.thoughtcrime.securesms.util.RemoteConfig
 import org.whispersystems.signalservice.api.NetworkResult
+import org.whispersystems.signalservice.api.backup.MediaRootBackupKey
 import org.whispersystems.signalservice.api.messages.AttachmentTransferProgress
 import org.whispersystems.signalservice.api.messages.SignalServiceAttachment
 import org.whispersystems.signalservice.api.svr.SvrBApi
@@ -65,16 +72,12 @@ class BackupMessagesJob private constructor(
   companion object {
     private val TAG = Log.tag(BackupMessagesJob::class.java)
     private val FILE_REUSE_TIMEOUT = 1.hours
+    private const val ATTACHMENT_SNAPSHOT_BUFFER_SIZE = 10_000
 
     const val KEY = "BackupMessagesJob"
 
     private fun isBackupAllowed(): Boolean {
       return when {
-        !RemoteConfig.messageBackups -> {
-          Log.i(TAG, "Remote config for backups is disabled.", true)
-          false
-        }
-
         SignalStore.registration.restoreDecisionState.isDecisionPending -> {
           Log.i(TAG, "Backup not allowed: a restore decision is pending.", true)
           false
@@ -186,9 +189,11 @@ class BackupMessagesJob private constructor(
 
     val createKeyResult = SignalDatabase.attachments.createRemoteKeyForAttachmentsThatNeedArchiveUpload()
     if (createKeyResult.totalCount > 0) {
-      Log.w(TAG, "Needed to create remote keys. $createKeyResult", true)
       if (createKeyResult.unexpectedKeyCreation) {
+        Log.w(TAG, "Unexpected remote key creation! $createKeyResult", true)
         maybePostRemoteKeyMissingNotification()
+      } else {
+        Log.d(TAG, "Needed to create ${createKeyResult.totalCount} remote keys for quotes/stickers.")
       }
     }
     stopwatch.split("keygen")
@@ -230,6 +235,8 @@ class BackupMessagesJob private constructor(
         when (result.code) {
           413 -> {
             Log.i(TAG, "Backup file is too large! Size: ${tempBackupFile.length()} bytes", result.getCause(), true)
+            tempBackupFile.delete()
+            this.dataFile = ""
             // TODO [backup] Need to show the user an error
           }
           else -> {
@@ -357,7 +364,10 @@ class BackupMessagesJob private constructor(
 
     val outputStream = FileOutputStream(tempBackupFile)
     val backupKey = SignalStore.backup.messageBackupKey
+    val mediaRootBackupKey = SignalStore.backup.mediaRootBackupKey
     val currentTime = System.currentTimeMillis()
+
+    val attachmentInfoBuffer: MutableSet<ArchiveAttachmentInfo> = mutableSetOf()
 
     BackupRepository.exportForSignalBackup(
       outputStream = outputStream,
@@ -368,8 +378,19 @@ class BackupMessagesJob private constructor(
       append = { tempBackupFile.appendBytes(it) },
       cancellationSignal = { this.isCanceled },
       currentTime = currentTime
-    ) {
-      writeMediaCursorToTemporaryTable(it, mediaBackupEnabled = SignalStore.backup.backsUpMedia)
+    ) { frame ->
+      attachmentInfoBuffer += frame.getAllReferencedArchiveAttachmentInfos()
+      if (attachmentInfoBuffer.size > ATTACHMENT_SNAPSHOT_BUFFER_SIZE) {
+        SignalDatabase.backupMediaSnapshots.writePendingMediaEntries(attachmentInfoBuffer.toFullSizeMediaEntries(mediaRootBackupKey))
+        SignalDatabase.backupMediaSnapshots.writePendingMediaEntries(attachmentInfoBuffer.toThumbnailMediaEntries(mediaRootBackupKey))
+        attachmentInfoBuffer.clear()
+      }
+    }
+
+    if (attachmentInfoBuffer.isNotEmpty()) {
+      SignalDatabase.backupMediaSnapshots.writePendingMediaEntries(attachmentInfoBuffer.toFullSizeMediaEntries(mediaRootBackupKey))
+      SignalDatabase.backupMediaSnapshots.writePendingMediaEntries(attachmentInfoBuffer.toThumbnailMediaEntries(mediaRootBackupKey))
+      attachmentInfoBuffer.clear()
     }
 
     if (isCanceled) {
@@ -380,6 +401,7 @@ class BackupMessagesJob private constructor(
 
     when (val result = ArchiveValidator.validateSignalBackup(tempBackupFile, backupKey, forwardSecrecyToken)) {
       ArchiveValidator.ValidationResult.Success -> {
+        SignalStore.backup.hasValidationError = false
         Log.d(TAG, "Successfully passed validation.", true)
       }
 
@@ -390,13 +412,19 @@ class BackupMessagesJob private constructor(
 
       is ArchiveValidator.ValidationResult.MessageValidationError -> {
         Log.w(TAG, "The backup file fails validation! Message: ${result.exception.message}, Details: ${result.messageDetails}", true)
+        tempBackupFile.delete()
+        this.dataFile = ""
+        SignalStore.backup.hasValidationError = true
         ArchiveUploadProgress.onValidationFailure()
         return BackupFileResult.Failure
       }
 
       is ArchiveValidator.ValidationResult.RecipientDuplicateE164Error -> {
         Log.w(TAG, "The backup file fails validation with a duplicate recipient! Message: ${result.exception.message}, Details: ${result.details}", true)
+        tempBackupFile.delete()
+        this.dataFile = ""
         AppDependencies.jobManager.add(E164FormattingJob())
+        SignalStore.backup.hasValidationError = true
         ArchiveUploadProgress.onValidationFailure()
         return BackupFileResult.Failure
       }
@@ -419,24 +447,12 @@ class BackupMessagesJob private constructor(
     )
   }
 
-  private fun writeMediaCursorToTemporaryTable(db: SignalDatabase, mediaBackupEnabled: Boolean) {
-    if (mediaBackupEnabled) {
-      db.attachmentTable.getFullSizeAttachmentsThatWillBeIncludedInArchive().use {
-        SignalDatabase.backupMediaSnapshots.writeFullSizePendingMediaObjects(
-          mediaObjects = ArchiveMediaItemIterator(it).asSequence()
-        )
-      }
-
-      db.attachmentTable.getThumbnailAttachmentsThatWillBeIncludedInArchive().use {
-        SignalDatabase.backupMediaSnapshots.writeThumbnailPendingMediaObjects(
-          mediaObjects = ArchiveMediaItemIterator(it).asSequence()
-        )
-      }
-    }
-  }
-
   private fun maybePostRemoteKeyMissingNotification() {
     if (!RemoteConfig.internalUser || !SignalStore.backup.backsUpMedia) {
+      return
+    }
+
+    if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
       return
     }
 
@@ -448,6 +464,44 @@ class BackupMessagesJob private constructor(
       .build()
 
     NotificationManagerCompat.from(context).notify(NotificationIds.INTERNAL_ERROR, notification)
+  }
+
+  private fun Set<ArchiveAttachmentInfo>.toFullSizeMediaEntries(mediaRootBackupKey: MediaRootBackupKey): Set<BackupMediaSnapshotTable.MediaEntry> {
+    return this
+      .map {
+        BackupMediaSnapshotTable.MediaEntry(
+          mediaId = it.fullSizeMediaName.toMediaId(mediaRootBackupKey).encode(),
+          cdn = it.cdn,
+          plaintextHash = it.plaintextHash.toByteArray(),
+          remoteKey = it.remoteKey.toByteArray(),
+          isThumbnail = false
+        )
+      }
+      .toSet()
+  }
+
+  /**
+   * Note: we have to remove permanently failed thumbnails here because there's no way we can know from the backup frame whether or not the thumbnail
+   * failed permanently independently of the attachment itself. If the attachment itself fails permanently, it's not put in the backup, so we're covered
+   * for full-size stuff.
+   */
+  private fun Set<ArchiveAttachmentInfo>.toThumbnailMediaEntries(mediaRootBackupKey: MediaRootBackupKey): Set<BackupMediaSnapshotTable.MediaEntry> {
+    return this
+      .asSequence()
+      .filter { MediaUtil.isImageOrVideoType(it.contentType) }
+      .filterNot { it.forQuote }
+      .filterNot { it.isWallpaper }
+      .map {
+        BackupMediaSnapshotTable.MediaEntry(
+          mediaId = it.thumbnailMediaName.toMediaId(mediaRootBackupKey).encode(),
+          cdn = it.cdn,
+          plaintextHash = it.plaintextHash.toByteArray(),
+          remoteKey = it.remoteKey.toByteArray(),
+          isThumbnail = true
+        )
+      }
+      .toSet()
+      .let { SignalDatabase.attachments.filterPermanentlyFailedThumbnails(it) }
   }
 
   class Factory : Job.Factory<BackupMessagesJob> {

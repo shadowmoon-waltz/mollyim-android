@@ -14,6 +14,7 @@ import org.signal.core.util.EventTimer
 import org.signal.core.util.Hex
 import org.signal.core.util.ParallelEventTimer
 import org.signal.core.util.StringUtil
+import org.signal.core.util.bytes
 import org.signal.core.util.concurrent.SignalExecutors
 import org.signal.core.util.emptyIfNull
 import org.signal.core.util.isNotNullOrBlank
@@ -49,6 +50,8 @@ import org.thoughtcrime.securesms.backup.v2.proto.GroupV2MigrationUpdate
 import org.thoughtcrime.securesms.backup.v2.proto.IndividualCall
 import org.thoughtcrime.securesms.backup.v2.proto.LearnedProfileChatUpdate
 import org.thoughtcrime.securesms.backup.v2.proto.MessageAttachment
+import org.thoughtcrime.securesms.backup.v2.proto.Poll
+import org.thoughtcrime.securesms.backup.v2.proto.PollTerminateUpdate
 import org.thoughtcrime.securesms.backup.v2.proto.ProfileChangeChatUpdate
 import org.thoughtcrime.securesms.backup.v2.proto.Quote
 import org.thoughtcrime.securesms.backup.v2.proto.Reaction
@@ -89,9 +92,11 @@ import org.thoughtcrime.securesms.keyvalue.SignalStore
 import org.thoughtcrime.securesms.linkpreview.LinkPreview
 import org.thoughtcrime.securesms.mms.PartAuthority
 import org.thoughtcrime.securesms.mms.QuoteModel
+import org.thoughtcrime.securesms.polls.PollRecord
 import org.thoughtcrime.securesms.recipients.RecipientId
 import org.thoughtcrime.securesms.util.JsonUtils
 import org.thoughtcrime.securesms.util.MediaUtil
+import org.thoughtcrime.securesms.util.mb
 import org.whispersystems.signalservice.api.util.UuidUtil
 import org.whispersystems.signalservice.api.util.toByteArray
 import java.io.Closeable
@@ -110,6 +115,8 @@ private val TAG = Log.tag(ChatItemArchiveExporter::class.java)
 private val MAX_INLINED_BODY_SIZE = 128.kibiBytes.bytes.toInt()
 private val MAX_INLINED_BODY_SIZE_WITH_LONG_ATTACHMENT_POINTER = 2.kibiBytes.bytes.toInt()
 private val MAX_INLINED_QUOTE_BODY_SIZE = 2.kibiBytes.bytes.toInt()
+private const val MAX_POLL_CHARACTER_LENGTH = 100
+private const val MAX_POLL_OPTIONS = 10
 
 /**
  * An iterator for chat items with a clever performance twist: rather than do the extra queries one at a time (for reactions,
@@ -130,6 +137,7 @@ class ChatItemArchiveExporter(
 
   companion object {
     val EXPIRATION_CUTOFF = 1.days
+    private val MAX_BUFFER_MEMORY_SIZE = 15.mb
   }
 
   /** Timer for more macro-level events, like fetching extra data vs transforming the data. */
@@ -360,6 +368,30 @@ class ChatItemArchiveExporter(
           transformTimer.emit("story")
         }
 
+        MessageTypes.isPollTerminate(record.type) -> {
+          val pollTerminateUpdate = record.toRemotePollTerminateUpdate()
+          if (pollTerminateUpdate == null) {
+            Log.w(TAG, ExportSkips.pollTerminateIsEmpty(record.dateSent))
+            continue
+          }
+          builder.updateMessage = ChatUpdateMessage(pollTerminate = pollTerminateUpdate)
+          transformTimer.emit("poll-terminate")
+        }
+
+        extraData.pollsById[record.id] != null -> {
+          val poll = extraData.pollsById[record.id]!!
+          if (poll.question.isEmpty() || poll.question.length > MAX_POLL_CHARACTER_LENGTH) {
+            Log.w(TAG, ExportSkips.invalidPollQuestion(record.dateSent))
+            continue
+          }
+          if (poll.pollOptions.isEmpty() || poll.pollOptions.size > MAX_POLL_OPTIONS || poll.pollOptions.any { it.text.isEmpty() || it.text.length > MAX_POLL_CHARACTER_LENGTH }) {
+            Log.w(TAG, ExportSkips.invalidPollOption(record.dateSent))
+            continue
+          }
+          builder.poll = poll.toRemotePollMessage(reactionRecords = extraData.reactionsById[record.id])
+          transformTimer.emit("poll")
+        }
+
         else -> {
           val attachments = extraData.attachmentsById[record.id]
           val sticker = attachments?.firstOrNull { dbAttachment -> dbAttachment.isSticker }
@@ -423,11 +455,17 @@ class ChatItemArchiveExporter(
   private fun readNextMessageRecordBatch(pastIds: Set<Long>): LinkedHashMap<Long, BackupMessageRecord> {
     return cursorGenerator(lastSeenReceivedTime, batchSize).use { cursor ->
       val records: LinkedHashMap<Long, BackupMessageRecord> = LinkedHashMap(batchSize)
-      while (cursor.moveToNext()) {
+      var estimatedRecordsMemorySize = 0
+      while (cursor.moveToNext() && estimatedRecordsMemorySize < MAX_BUFFER_MEMORY_SIZE) {
         cursor.toBackupMessageRecord(pastIds, backupStartTime)?.let { record ->
           records[record.id] = record
           lastSeenReceivedTime = record.dateReceived
+          estimatedRecordsMemorySize += record.estimatedSizeInBytes
         }
+      }
+
+      if (estimatedRecordsMemorySize > MAX_BUFFER_MEMORY_SIZE) {
+        Log.d(TAG, "[readNextMessageRecordBatch] recordsSize = ${records.size} recordsMemSize: ${estimatedRecordsMemorySize.bytes.toUnitString(spaced = false)}")
       }
       records
     }
@@ -460,16 +498,24 @@ class ChatItemArchiveExporter(
       }
     }
 
+    val pollsFuture = executor.submitTyped {
+      extraDataTimer.timeEvent("polls") {
+        db.pollTable.getPollsForMessages(messageIds = messageIds, includePending = false)
+      }
+    }
+
     val mentionsResult = mentionsFuture.get()
     val reactionsResult = reactionsFuture.get()
     val attachmentsResult = attachmentsFuture.get()
     val groupReceiptsResult = groupReceiptsFuture.get()
+    val pollsResult = pollsFuture.get()
 
     return ExtraMessageData(
       mentionsById = mentionsResult,
       reactionsById = reactionsResult,
       attachmentsById = attachmentsResult,
-      groupReceiptsById = groupReceiptsResult
+      groupReceiptsById = groupReceiptsResult,
+      pollsById = pollsResult
     )
   }
 }
@@ -538,7 +584,7 @@ private fun BackupMessageRecord.toBasicChatItemBuilder(selfRecipientId: Recipien
           dateReceived = dateReceived
         )
 
-        if (expiresInMs != null && outgoing?.sendStatus?.all { it.pending == null && it.failed == null } == true) {
+        if (expiresInMs != null && outgoing?.sendStatus?.all { it.pending == null && it.failed == null } == true && expireStartDate == null) {
           Log.w(TAG, ExportOddities.outgoingMessageWasSentButTimerNotStarted(record.dateSent))
           expireStartDate = record.dateReceived
         }
@@ -709,7 +755,7 @@ private fun CallTable.Call.toRemoteCallUpdate(exportState: ExportState, messageR
             CallTable.Event.OUTGOING_RING -> GroupCall.State.OUTGOING_RING
             CallTable.Event.DELETE -> return null
           },
-          ringerRecipientId = this.ringerRecipient?.toLong(),
+          ringerRecipientId = this.ringerRecipient?.toLong()?.takeIf { exportState.recipientIdToAci[it] != null },
           startedCallRecipientId = groupCallUpdateDetails.startedCallUuid.takeIf { it.isNotEmpty() }?.let { exportState.aciToRecipientId[it] },
           startedCallTimestamp = this.timestamp.clampToValidBackupRange(),
           endedCallTimestamp = groupCallUpdateDetails.endedCallTimestamp.clampToValidBackupRange().takeIf { it > 0 },
@@ -750,6 +796,14 @@ private fun CallTable.Call.toRemoteCallUpdate(exportState: ExportState, messageR
 
     CallTable.Type.AD_HOC_CALL -> throw IllegalArgumentException("AdHoc calls are not update messages!")
   }
+}
+
+private fun BackupMessageRecord.toRemotePollTerminateUpdate(): PollTerminateUpdate? {
+  val pollTerminate = this.messageExtras?.pollTerminate ?: return null
+  return PollTerminateUpdate(
+    targetSentTimestamp = pollTerminate.targetTimestamp,
+    question = pollTerminate.question
+  )
 }
 
 private fun BackupMessageRecord.toRemoteSharedContact(attachments: List<DatabaseAttachment>?): Contact? {
@@ -1051,6 +1105,7 @@ private fun BackupMessageRecord.toRemoteQuote(exportState: ExportState, attachme
       }
     }
     QuoteModel.Type.GIFT_BADGE -> Quote.Type.GIFT_BADGE
+    QuoteModel.Type.POLL -> Quote.Type.POLL
   }
 
   val bodyRanges = this.quoteBodyRanges?.toRemoteBodyRanges(dateSent) ?: emptyList()
@@ -1097,6 +1152,26 @@ private fun BackupMessageRecord.toRemoteGiftBadgeUpdate(): BackupGiftBadge? {
       GiftBadge.RedemptionState.PENDING -> BackupGiftBadge.State.UNOPENED
       GiftBadge.RedemptionState.STARTED -> BackupGiftBadge.State.OPENED
     }
+  )
+}
+
+private fun PollRecord.toRemotePollMessage(reactionRecords: List<ReactionRecord>?): Poll {
+  return Poll(
+    question = this.question,
+    allowMultiple = this.allowMultipleVotes,
+    hasEnded = this.hasEnded,
+    options = this.pollOptions.map { option ->
+      Poll.PollOption(
+        option = option.text,
+        votes = option.voters.map { voter ->
+          Poll.PollOption.PollVote(
+            voterId = voter.id,
+            voteCount = voter.voteCount
+          )
+        }
+      )
+    },
+    reactions = reactionRecords?.toRemote() ?: emptyList()
   )
 }
 
@@ -1419,7 +1494,8 @@ private fun Long.isDirectionlessType(): Boolean {
     MessageTypes.isGroupCall(this) ||
     MessageTypes.isGroupUpdate(this) ||
     MessageTypes.isGroupV1MigrationEvent(this) ||
-    MessageTypes.isGroupQuit(this)
+    MessageTypes.isGroupQuit(this) ||
+    MessageTypes.isPollTerminate(this)
 }
 
 private fun Long.isIdentityVerifyType(): Boolean {
@@ -1434,7 +1510,7 @@ private fun String.e164ToLong(): Long? {
     this
   }
 
-  return fixed.toLongOrNull()
+  return fixed.toLongOrNull()?.takeIf { it > 0L }
 }
 
 private fun <T> ExecutorService.submitTyped(callable: Callable<T>): Future<T> {
@@ -1450,7 +1526,8 @@ private fun ChatItem.validateChatItem(exportState: ExportState): ChatItem? {
     this.paymentNotification == null &&
     this.giftBadge == null &&
     this.viewOnceMessage == null &&
-    this.directStoryReplyMessage == null
+    this.directStoryReplyMessage == null &&
+    this.poll == null
   ) {
     Log.w(TAG, ExportSkips.emptyChatItem(this.dateSent))
     return null
@@ -1539,6 +1616,7 @@ private fun Cursor.toBackupMessageRecord(pastIds: Set<Long>, backupStartTime: Lo
 
   val expiresIn = this.requireLong(MessageTable.EXPIRES_IN)
   val expireStarted = this.requireLong(MessageTable.EXPIRE_STARTED)
+  val messageExtras = this.requireBlob(MessageTable.MESSAGE_EXTRAS)
 
   return BackupMessageRecord(
     id = id,
@@ -1573,9 +1651,10 @@ private fun Cursor.toBackupMessageRecord(pastIds: Set<Long>, backupStartTime: Lo
     networkFailureRecipientIds = this.requireString(MessageTable.NETWORK_FAILURES).parseNetworkFailures(),
     identityMismatchRecipientIds = this.requireString(MessageTable.MISMATCHED_IDENTITIES).parseIdentityMismatches(),
     baseType = this.requireLong(MessageTable.TYPE) and MessageTypes.BASE_TYPE_MASK,
-    messageExtras = this.requireBlob(MessageTable.MESSAGE_EXTRAS).parseMessageExtras(),
+    messageExtras = messageExtras.parseMessageExtras(),
     viewOnce = this.requireBoolean(MessageTable.VIEW_ONCE),
-    parentStoryId = this.requireLong(MessageTable.PARENT_STORY_ID)
+    parentStoryId = this.requireLong(MessageTable.PARENT_STORY_ID),
+    messageExtrasSize = messageExtras?.size ?: 0
   )
 }
 
@@ -1614,14 +1693,24 @@ private class BackupMessageRecord(
   val identityMismatchRecipientIds: Set<Long>,
   val baseType: Long,
   val messageExtras: MessageExtras?,
-  val viewOnce: Boolean
-)
+  val viewOnce: Boolean,
+  private val messageExtrasSize: Int
+) {
+  val estimatedSizeInBytes: Int = (body?.length ?: 0) +
+    (linkPreview?.length ?: 0) +
+    (sharedContacts?.length ?: 0) +
+    (quoteBody?.length ?: 0) +
+    (quoteBodyRanges?.size ?: 0) +
+    messageExtrasSize +
+    ((17 + networkFailureRecipientIds.size + identityMismatchRecipientIds.size) * 8)
+}
 
 private data class ExtraMessageData(
   val mentionsById: Map<Long, List<Mention>>,
   val reactionsById: Map<Long, List<ReactionRecord>>,
   val attachmentsById: Map<Long, List<DatabaseAttachment>>,
-  val groupReceiptsById: Map<Long, List<GroupReceiptTable.GroupReceiptInfo>>
+  val groupReceiptsById: Map<Long, List<GroupReceiptTable.GroupReceiptInfo>>,
+  val pollsById: Map<Long, PollRecord>
 )
 
 private enum class Direction {

@@ -374,10 +374,8 @@ public class ApplicationContext extends Application implements AppForegroundObse
   }
 
   public void checkFreeDiskSpace() {
-    if (RemoteConfig.messageBackups()) {
-      long availableBytes = BackupRepository.INSTANCE.getFreeStorageSpace().getBytes();
-      SignalStore.backup().setSpaceAvailableOnDiskBytes(availableBytes);
-    }
+    long availableBytes = BackupRepository.INSTANCE.getFreeStorageSpace().getBytes();
+    SignalStore.backup().setSpaceAvailableOnDiskBytes(availableBytes);
   }
 
   private void initializeSecurityProvider() {
@@ -659,7 +657,7 @@ public class ApplicationContext extends Application implements AppForegroundObse
   }
 
   private void ensureProfileUploaded() {
-    if (SignalStore.account().isRegistered() && !SignalStore.registration().hasUploadedProfile() && !Recipient.self().getProfileName().isEmpty()) {
+    if (SignalStore.account().isRegistered() && !SignalStore.registration().hasUploadedProfile() && !Recipient.self().getProfileName().isEmpty() && SignalStore.account().isPrimaryDevice()) {
       Log.w(TAG, "User has a profile, but has not uploaded one. Uploading now.");
       AppDependencies.getJobManager().add(new ProfileUploadJob());
     }
