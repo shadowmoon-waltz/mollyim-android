@@ -15,7 +15,7 @@ import org.thoughtcrime.securesms.components.settings.DSLSettingsActivity
 import org.thoughtcrime.securesms.components.settings.app.routes.AppSettingsRoute
 import org.thoughtcrime.securesms.components.settings.app.subscription.GooglePayComponent
 import org.thoughtcrime.securesms.components.settings.app.subscription.GooglePayRepository
-//import org.thoughtcrime.securesms.help.HelpFragment
+import org.thoughtcrime.securesms.help.HelpFragment
 import org.thoughtcrime.securesms.keyvalue.SettingsValues
 import org.thoughtcrime.securesms.keyvalue.SignalStore
 import org.thoughtcrime.securesms.profiles.manage.UsernameEditMode
@@ -80,6 +80,7 @@ class AppSettingsActivity : DSLSettingsActivity(), GooglePayComponent {
         AppSettingsRoute.BackupsRoute.Backups -> AppSettingsFragmentDirections.actionDirectToBackupsSettingsFragment()
         AppSettingsRoute.Invite -> AppSettingsFragmentDirections.actionDirectToInviteFragment()
         AppSettingsRoute.DataAndStorageRoute.DataAndStorage -> AppSettingsFragmentDirections.actionDirectToStoragePreferenceFragment()
+        AppSettingsRoute.ForkSettings -> AppSettingsFragmentDirections.actionDirectToForkSettingsFragment()
         else -> error("Unsupported start location: ${appSettingsRoute?.javaClass?.name}")
       }
     }
@@ -230,6 +231,9 @@ class AppSettingsActivity : DSLSettingsActivity(), GooglePayComponent {
 
     @JvmStatic
     fun invite(context: Context): Intent = getIntentForStartLocation(context, AppSettingsRoute.Invite)
+
+    @JvmStatic
+    fun forkSettings(context: Context): Intent = getIntentForStartLocation(context, AppSettingsRoute.ForkSettings)
 
     private fun getIntentForStartLocation(context: Context, startRoute: AppSettingsRoute): Intent {
       return Intent(context, AppSettingsActivity::class.java)

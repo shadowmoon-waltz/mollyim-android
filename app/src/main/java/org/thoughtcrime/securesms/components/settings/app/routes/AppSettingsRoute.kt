@@ -229,4 +229,6 @@ sealed interface AppSettingsRoute : Parcelable {
     data object AccountLocked : ChangeNumberRoute
     data object PinDiffers : ChangeNumberRoute
   }
+
+  data object ForkSettings : AppSettingsRoute
 }
