@@ -393,7 +393,8 @@ private fun AppSettingsContent(
               } else {
                 TextWithBetaLabel(
                   text = stringResource(R.string.preferences_chats__backups),
-                  textStyle = MaterialTheme.typography.bodyLarge
+                  textStyle = MaterialTheme.typography.bodyLarge,
+                  enabled = isRegisteredAndUpToDate
                 )
               }
             },
@@ -649,6 +650,40 @@ private fun AppSettingsContentPreview() {
         isPrimaryDevice = true,
         unreadPaymentsCount = 5,
         userUnregistered = false,
+        clientDeprecated = false,
+        showInternalPreferences = true,
+        showAppUpdates = true,
+        backupFailureState = BackupFailureState.OUT_OF_STORAGE_SPACE
+      ),
+      bannerManager = BannerManager(
+        banners = listOf(TestBanner())
+      ),
+      callbacks = EmptyCallbacks
+    )
+  }
+}
+
+@DayNightPreviews
+@Composable
+private fun AppSettingsContentUnregisteredPreview() {
+  Previews.Preview {
+    AppSettingsContent(
+      self = BioRecipientState(
+        Recipient(
+          systemContactName = "Miles Morales",
+          profileName = ProfileName.fromParts("Miles", "Morales ❤\uFE0F"),
+          isSelf = true,
+          e164Value = "+15555555555",
+          usernameValue = "miles.98",
+          aboutEmoji = "❤\uFE0F",
+          about = "About",
+          isResolving = false
+        )
+      ),
+      state = AppSettingsState(
+        isPrimaryDevice = true,
+        unreadPaymentsCount = 5,
+        userUnregistered = true,
         clientDeprecated = false,
         showInternalPreferences = true,
         showAppUpdates = true,
