@@ -97,7 +97,8 @@ open class V2ConversationItemTextOnlyViewHolder<Model : MappingModel<Model>>(
     binding.footerDate,
     binding.footerExpiry,
     binding.deliveryStatus,
-    binding.footerBackground
+    binding.footerBackground,
+    binding.footerPinned
   )
 
   override val reactionsView: View = binding.reactions
@@ -260,6 +261,7 @@ open class V2ConversationItemTextOnlyViewHolder<Model : MappingModel<Model>>(
     presentDate()
     presentDeliveryStatus()
     presentFooterBackground()
+    presentFooterPinned()
     presentFooterExpiry()
     presentFooterEndPadding()
     presentAlert()
@@ -556,6 +558,12 @@ open class V2ConversationItemTextOnlyViewHolder<Model : MappingModel<Model>>(
     }
   }
 
+  private fun presentFooterPinned() {
+    val pinned = binding.footerPinned
+    pinned.setColorFilter(themeDelegate.getFooterForegroundColor(conversationMessage), PorterDuff.Mode.SRC_IN)
+    pinned.visible = conversationMessage.messageRecord.pinnedUntil > 0
+  }
+
   private fun presentFooterEndPadding() {
     binding.footerSpace?.visibility = if (isForcedFooter() || shape.isEndingShape) {
       View.INVISIBLE
@@ -827,7 +835,7 @@ open class V2ConversationItemTextOnlyViewHolder<Model : MappingModel<Model>>(
   }
 
   private fun isForcedFooter(): Boolean {
-    return conversationMessage.messageRecord.isEditMessage || conversationMessage.messageRecord.expiresIn > 0L
+    return conversationMessage.messageRecord.isEditMessage || conversationMessage.messageRecord.expiresIn > 0L || conversationMessage.messageRecord.pinnedUntil > 0
   }
 
   private inner class ReactionMeasureListener : V2ConversationItemLayout.OnMeasureListener {

@@ -49,9 +49,9 @@ import org.signal.core.util.ThreadUtil
 import org.signal.core.util.concurrent.LifecycleDisposable
 import org.signal.core.util.concurrent.SignalDispatchers
 import org.signal.core.util.concurrent.SignalExecutors
+import org.signal.core.util.isInMultiWindowModeCompat
 import org.signal.core.util.logging.Log
-import org.signal.ringrtc.GroupCall
-import org.thoughtcrime.securesms.BaseActivity
+import org.signal.ringrtc.CallManager
 import org.thoughtcrime.securesms.PassphraseRequiredActivity
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.sensors.Orientation
@@ -87,7 +87,6 @@ import org.thoughtcrime.securesms.util.DynamicTheme
 import org.thoughtcrime.securesms.util.EllapsedTimeFormatter
 import org.thoughtcrime.securesms.util.FullscreenHelper
 import org.thoughtcrime.securesms.util.RemoteConfig
-import org.thoughtcrime.securesms.util.TextSecurePreferences
 import org.thoughtcrime.securesms.util.ThemeUtil
 import org.thoughtcrime.securesms.util.ThrottledDebouncer
 import org.thoughtcrime.securesms.util.VibrateUtil
@@ -226,7 +225,7 @@ class WebRtcCallActivity : PassphraseRequiredActivity(), SafetyNumberChangeDialo
     super.onResume()
     theme.onResume(this)
 
-    initializeScreenshotSecurity()
+    // MOLLY: Screen security is already initialized by BaseActivity.onResume()
 
     if (!EventBus.getDefault().isRegistered(this)) {
       EventBus.getDefault().register(this)
@@ -295,7 +294,7 @@ class WebRtcCallActivity : PassphraseRequiredActivity(), SafetyNumberChangeDialo
       requestNewSizesThrottle.clear()
     }
 
-    if (!isChangingConfigurations) {
+    if (!isChangingConfigurations && !isInMultiWindowModeCompat()) {
       AppDependencies.signalCallManager.setEnableVideo(false)
     }
 
@@ -411,7 +410,7 @@ class WebRtcCallActivity : PassphraseRequiredActivity(), SafetyNumberChangeDialo
       WebRtcViewModel.State.CALL_RINGING -> handleCallRinging()
       WebRtcViewModel.State.CALL_BUSY -> handleCallBusy()
       WebRtcViewModel.State.CALL_DISCONNECTED -> {
-        if (event.groupCallEndReason == GroupCall.GroupCallEndReason.HAS_MAX_DEVICES) {
+        if (event.groupCallEndReason == CallManager.CallEndReason.HAS_MAX_DEVICES) {
           handleGroupCallHasMaxDevices(event.recipient)
         } else {
           handleTerminate(event.recipient, HangupMessage.Type.NORMAL)
@@ -987,14 +986,6 @@ class WebRtcCallActivity : PassphraseRequiredActivity(), SafetyNumberChangeDialo
       callScreen.showSpeakerViewHint()
     } else {
       callScreen.hideSpeakerViewHint()
-    }
-  }
-
-  private fun initializeScreenshotSecurity() {
-    if (TextSecurePreferences.isScreenSecurityEnabled(this)) {
-      window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-    } else {
-      window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
     }
   }
 

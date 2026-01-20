@@ -28,7 +28,7 @@ import org.thoughtcrime.securesms.mms.MmsException;
 import org.thoughtcrime.securesms.mms.OutgoingMessage;
 import org.thoughtcrime.securesms.sms.MessageSender;
 import org.thoughtcrime.securesms.storage.StorageSyncHelper;
-import org.whispersystems.signalservice.api.push.ServiceId;
+import org.signal.core.models.ServiceId;
 import org.whispersystems.signalservice.api.push.SignalServiceAddress;
 import org.whispersystems.signalservice.api.push.exceptions.NotFoundException;
 
@@ -130,7 +130,7 @@ public class RecipientUtil {
   }
 
   public static Optional<Integer> getSubDeviceCount(@NonNull Context context, @NonNull Recipient recipient) {
-    if (!recipient.isRegistered() || recipient.isGroup()) {
+    if (!recipient.isRegistered() || recipient.isGroup() || recipient.isSelf()) {
       return Optional.empty();
     }
     try {

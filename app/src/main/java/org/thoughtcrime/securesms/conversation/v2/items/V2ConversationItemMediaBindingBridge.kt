@@ -44,7 +44,8 @@ fun V2ConversationItemMediaIncomingBinding.bridge(): V2ConversationItemMediaBind
     footerBackground = conversationItemFooterBackground,
     alert = null,
     footerSpace = null,
-    isIncoming = true
+    isIncoming = true,
+    footerPinned = conversationItemFooterPinned
   )
 
   return V2ConversationItemMediaBindingBridge(
@@ -75,7 +76,8 @@ fun V2ConversationItemMediaOutgoingBinding.bridge(): V2ConversationItemMediaBind
     footerBackground = conversationItemFooterBackground,
     alert = conversationItemAlert,
     footerSpace = footerEndPad,
-    isIncoming = false
+    isIncoming = false,
+    footerPinned = conversationItemFooterPinned
   )
 
   return V2ConversationItemMediaBindingBridge(

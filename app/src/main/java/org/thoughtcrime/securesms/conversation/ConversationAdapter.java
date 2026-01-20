@@ -332,7 +332,7 @@ public class ConversationAdapter
 
     if (conversationMessage == null) return -1;
 
-    if (displayMode.getScheduleMessageMode()) {
+    if (displayMode.getMessageMode() == ConversationItemDisplayMode.MessageMode.SCHEDULED) {
       calendar.setTimeInMillis(((MmsMessageRecord) conversationMessage.getMessageRecord()).getScheduledDate());
     } else if (displayMode == ConversationItemDisplayMode.EditHistory.INSTANCE) {
       calendar.setTimeInMillis(conversationMessage.getMessageRecord().getDateSent());
@@ -352,7 +352,7 @@ public class ConversationAdapter
     Context             context             = viewHolder.itemView.getContext();
     ConversationMessage conversationMessage = Objects.requireNonNull(getItem(position));
 
-    if (displayMode.getScheduleMessageMode()) {
+    if (displayMode.getMessageMode() == ConversationItemDisplayMode.MessageMode.SCHEDULED) {
       viewHolder.setText(DateUtils.getScheduledMessagesDateHeaderString(viewHolder.itemView.getContext(), locale, ((MmsMessageRecord) conversationMessage.getMessageRecord()).getScheduledDate()));
     } else if (displayMode == ConversationItemDisplayMode.EditHistory.INSTANCE) {
       viewHolder.setText(DateUtils.getConversationDateHeaderString(viewHolder.itemView.getContext(), locale, conversationMessage.getMessageRecord().getDateSent()));

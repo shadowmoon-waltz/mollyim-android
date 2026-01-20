@@ -75,31 +75,33 @@ class NetworkConnectionListener(
       val validated = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) ?: false
       val httpProxy = props?.httpProxy
 
-      val initialState = NetworkState(
+      val activeNetworkState = NetworkState(
         available = hasInternet,
         validated = validated,
         httpProxy = httpProxy,
       )
 
-      onInitialConnectionState(network, initialState)
+      Log.d(TAG, "Active network snapshot: $activeNetworkState (network=$network)")
+      onInitialConnectionState(network, activeNetworkState)
     }
 
     fun stopMonitoring() {
       connectivityManager.unregisterNetworkCallback(this)
     }
 
-    private fun connectivityChanged(): NetworkState? {
+    private fun updateConnectionState(): NetworkState? {
       val newState = networks.bestNetworkState()
-      val hasChanged = newState != connectionState
-      return if (hasChanged) {
+      val oldState = connectionState
+
+      return if (newState != oldState) {
         connectionState = newState
-        Log.v(TAG, "Network state changed -> $newState")
+        if (oldState == null) {
+          Log.i(TAG, "Network state initialized -> $newState")
+        } else {
+          Log.i(TAG, "Network state changed: $oldState -> $newState")
+        }
         newState
       } else null
-    }
-
-    private fun NetworkState.dispatch() {
-      onNetworkChange(this)
     }
 
     private fun Map<Network, NetworkState>.bestNetworkState(): NetworkState =
@@ -108,61 +110,57 @@ class NetworkConnectionListener(
         ?: NetworkState.DOWN
 
     private fun onInitialConnectionState(network: Network?, state: NetworkState) {
-      val maybeNew = synchronized(this) {
+      synchronized(this) {
         if (connectionState == null) {
           if (network != null) {
             networks[network] = state
           }
-          connectivityChanged()
+          updateConnectionState()
         } else {
           Log.v(TAG, "Initial state skipped; already set: $connectionState")
           null
         }
-      }
-
-      maybeNew?.dispatch()
+      }?.notifyChange()
     }
 
     override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) {
       Log.d(TAG, "NetworkCallback onLinkPropertiesChanged($network)")
       val httpProxy = linkProperties.httpProxy
-      val maybeNew = synchronized(this) {
+      synchronized(this) {
         val existing = networks.getOrDefault(
           network,
           NetworkState(available = true, validated = false, httpProxy = httpProxy)
         )
         val state = existing.copy(httpProxy = httpProxy)
         networks[network] = state
-        connectivityChanged()
-      }
-
-      maybeNew?.dispatch()
+        updateConnectionState()
+      }?.notifyChange()
     }
 
     override fun onBlockedStatusChanged(network: Network, blocked: Boolean) {
       Log.d(TAG, "NetworkCallback onBlockedStatusChanged($network, $blocked)")
       val validated = !blocked
-      val maybeNew = synchronized(this) {
+      synchronized(this) {
         val existing = networks.getOrDefault(
           network,
           NetworkState(available = true, validated = validated, httpProxy = null)
         )
         val state = existing.copy(validated = validated)
         networks[network] = state
-        connectivityChanged()
-      }
-
-      maybeNew?.dispatch()
+        updateConnectionState()
+      }?.notifyChange()
     }
 
     override fun onLost(network: Network) {
       Log.d(TAG, "NetworkCallback onLost($network)")
-      val maybeNew = synchronized(this) {
+      synchronized(this) {
         networks.remove(network)
-        connectivityChanged()
-      }
+        updateConnectionState()
+      }?.notifyChange()
+    }
 
-      maybeNew?.dispatch()
+    private fun NetworkState.notifyChange() {
+      onNetworkChange(this)
     }
   }
 
