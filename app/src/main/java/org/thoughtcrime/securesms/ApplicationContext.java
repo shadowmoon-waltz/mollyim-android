@@ -290,8 +290,6 @@ public class ApplicationContext extends Application implements AppForegroundObse
       checkFreeDiskSpace();
       MemoryTracker.start();
       BackupSubscriptionCheckJob.enqueueIfAble();
-      AppDependencies.getAuthWebSocket().registerKeepAliveToken(SignalWebSocket.FOREGROUND_KEEPALIVE);
-      AppDependencies.getUnauthWebSocket().registerKeepAliveToken(SignalWebSocket.FOREGROUND_KEEPALIVE);
 
       long lastForegroundTime = SignalStore.misc().getLastForegroundTime();
       long currentTime        = System.currentTimeMillis();
@@ -583,8 +581,10 @@ public class ApplicationContext extends Application implements AppForegroundObse
   private void updateUnifiedPushStatus(boolean enabled) {
     SignalStore.unifiedpush().setEnabled(enabled);
     if (enabled) {
-      UnifiedPushDistributor.registerApp(SignalStore.unifiedpush().getMollySocketVapid());
-    } else {
+      UnifiedPushDistributor.registerApp(SignalStore.unifiedpush().getVapidPublicKey());
+    } else if (!SignalStore.unifiedpush().getAirGapped()) {
+      // Delete registration only if it isn't air gapped,
+      // When air gapped, we want to avoid unnecessary endpoint rotation
       UnifiedPushDistributor.unregisterApp();
     }
     AppDependencies.getJobManager().add(new UnifiedPushRefreshJob());
