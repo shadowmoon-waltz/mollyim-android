@@ -80,7 +80,7 @@ final class ReactionRecipientsAdapter extends RecyclerView.Adapter<ReactionRecip
     void bind(@NonNull ReactionDetails reaction, Locale locale, ReactionViewPagerAdapter.EventListener listener) {
       this.emoji.setText(reaction.getDisplayEmoji());
       if (locale != null) {
-        this.time.setText(DateUtils.getExtendedRelativeTimeSpanString(this.time.getContext(), locale, reaction.getTimestamp()));
+        this.time.setText(DateUtils.getExtendedRelativeTimeSpanString(this.time.getContext(), locale, reaction.getTimestamp()).getFirst());
       } else {
         this.time.setVisibility(View.GONE);
       }

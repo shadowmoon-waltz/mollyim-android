@@ -53,7 +53,6 @@ import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 
 import android.content.Context;
-import org.thoughtcrime.securesms.mediasend.Media;
 import org.thoughtcrime.securesms.keyvalue.SignalStore;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 

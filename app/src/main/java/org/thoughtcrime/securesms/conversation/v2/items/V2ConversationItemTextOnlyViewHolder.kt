@@ -64,6 +64,7 @@ import org.thoughtcrime.securesms.util.hasNoBubble
 import org.thoughtcrime.securesms.util.isScheduled
 import org.thoughtcrime.securesms.util.visible
 import java.util.Locale
+import org.signal.core.ui.R as CoreUiR
 
 /**
  * Represents a text-only conversation item.
@@ -296,14 +297,14 @@ open class V2ConversationItemTextOnlyViewHolder<Model : MappingModel<Model>>(
     icon.setImageResource(
       when (action) {
         SwipeActionTypes.REPLY -> R.drawable.symbol_reply_24
-        SwipeActionTypes.DELETE, SwipeActionTypes.DELETE_NO_PROMPT -> R.drawable.ic_trash_24
-        SwipeActionTypes.COPY_TEXT, SwipeActionTypes.COPY_TEXT_POPUP -> R.drawable.symbol_copy_android_24
-        SwipeActionTypes.FORWARD -> R.drawable.symbol_forward_24
-        SwipeActionTypes.MESSAGE_DETAILS -> R.drawable.symbol_info_24
+        SwipeActionTypes.DELETE, SwipeActionTypes.DELETE_NO_PROMPT -> CoreUiR.drawable.symbol_trash_24
+        SwipeActionTypes.COPY_TEXT, SwipeActionTypes.COPY_TEXT_POPUP -> CoreUiR.drawable.symbol_copy_android_24
+        SwipeActionTypes.FORWARD -> CoreUiR.drawable.symbol_forward_24
+        SwipeActionTypes.MESSAGE_DETAILS -> CoreUiR.drawable.symbol_info_24
         SwipeActionTypes.SHOW_OPTIONS -> R.drawable.ic_more_vert_24
         SwipeActionTypes.NOTE_TO_SELF -> R.drawable.ic_note_24
-        SwipeActionTypes.MULTI_SELECT -> R.drawable.symbol_check_circle_24
-        SwipeActionTypes.EDIT -> R.drawable.symbol_edit_24
+        SwipeActionTypes.MULTI_SELECT -> CoreUiR.drawable.symbol_check_circle_24
+        SwipeActionTypes.EDIT -> CoreUiR.drawable.symbol_edit_24
         else -> defaultDrawableId // for SwipeActionTypes.DEFAULT, SwipeActionTypes.NONE, and any other string
       }
     )
