@@ -783,16 +783,6 @@ public class TextSecurePreferences {
     return getBooleanPreference(context, SCREEN_SECURITY_PREF, true);
   }
 
-  private static boolean tempScreenSecurity = false;
-
-  public static boolean isScreenSecurityEnabled2(Context context) {
-    return (tempScreenSecurity || getBooleanPreference(context, SCREEN_SECURITY_PREF, false));
-  }
-
-  public static void setTempScreenSecurity(boolean b) {
-    tempScreenSecurity = b;
-  }
-
   public static int getLastVersionCodeForMolly(Context context) {
     return getIntegerPreference(context, LAST_VERSION_CODE_PREF, BuildConfig.VERSION_CODE);
   }

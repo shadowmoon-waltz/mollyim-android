@@ -18,14 +18,12 @@ import androidx.navigation.Navigation;
 import org.thoughtcrime.securesms.R;
 
 import org.signal.core.util.Base64;
+import org.thoughtcrime.securesms.components.TemporaryScreenshotSecurity;
 import org.thoughtcrime.securesms.util.views.CircularProgressMaterialButton;
 import org.signal.libsignal.protocol.IdentityKeyPair;
 import org.thoughtcrime.securesms.keyvalue.SignalStore;
 
 import android.widget.Button;
-
-import android.view.Window;
-import org.thoughtcrime.securesms.util.TextSecurePreferences;
 
 import androidx.biometric.BiometricManager;
 import androidx.biometric.BiometricManager.Authenticators;
@@ -48,22 +46,12 @@ public class SetIdentityKeysFragment extends Fragment {
 
   @Override
   public @Nullable View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-    TextSecurePreferences.setTempScreenSecurity(true);
-    requireActivity().getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+    TemporaryScreenshotSecurity.bindToViewLifecycleOwner(this);
     return inflater.inflate(R.layout.set_identity_keys_fragment, container, false);
   }
 
   @Override
   public void onDestroyView() {
-    TextSecurePreferences.setTempScreenSecurity(false);
-    Window w = requireActivity().getWindow();
-    if (w != null) {
-      if (TextSecurePreferences.isScreenSecurityEnabled(requireContext())) {
-        w.addFlags(WindowManager.LayoutParams.FLAG_SECURE);
-      } else {
-        w.clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
-      }
-    }
     clearCachedKeys();
     super.onDestroyView();
   }
@@ -96,7 +84,7 @@ public class SetIdentityKeysFragment extends Fragment {
       });
 
       BiometricPrompt.PromptInfo promptInfo = new BiometricPrompt.PromptInfo.Builder()
-          .setTitle("SignalSW")
+          .setTitle("MollySW")
           .setSubtitle("Authenticate to view/set identity keys")
           .setAllowedAuthenticators(authenticators)
           .build();
