@@ -22,6 +22,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.Toolbar;
+import androidx.compose.ui.platform.ComposeView;
 import androidx.core.text.HtmlCompat;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.Navigation;
@@ -33,21 +34,23 @@ import com.google.android.material.timepicker.TimeFormat;
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
+import org.signal.core.ui.permissions.Permissions;
+import org.signal.core.ui.util.StorageUtil;
+import org.signal.core.util.NoExternalStorageException;
 import org.signal.core.util.ThreadUtil;
 import org.signal.core.util.logging.Log;
 import org.thoughtcrime.securesms.R;
 import org.thoughtcrime.securesms.backup.BackupDialog;
 import org.thoughtcrime.securesms.backup.BackupEvent;
-import org.thoughtcrime.securesms.database.NoExternalStorageException;
 import org.thoughtcrime.securesms.dependencies.AppDependencies;
 import org.thoughtcrime.securesms.jobs.LocalBackupJob;
 import org.thoughtcrime.securesms.keyvalue.SignalStore;
-import org.thoughtcrime.securesms.permissions.Permissions;
+import org.thoughtcrime.securesms.preferences.widgets.UpgradeLocalBackupCard;
 import org.thoughtcrime.securesms.service.LocalBackupListener;
 import org.thoughtcrime.securesms.util.BackupUtil;
 import org.thoughtcrime.securesms.util.DateUtils;
+import org.thoughtcrime.securesms.util.Environment;
 import org.thoughtcrime.securesms.util.JavaTimeExtensionsKt;
-import org.thoughtcrime.securesms.util.StorageUtil;
 import org.thoughtcrime.securesms.util.TextSecurePreferences;
 
 import java.text.NumberFormat;
@@ -57,6 +60,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import kotlin.Pair;
+import kotlin.Unit;
 
 public class BackupsPreferenceFragment extends Fragment {
 
@@ -79,6 +83,7 @@ public class BackupsPreferenceFragment extends Fragment {
   private TextView    maxFilesSummary;
   private ProgressBar progress;
   private TextView    progressSummary;
+  private ComposeView upgradeCard;
   private View        interval;
   private TextView    intervalSummary;
   private TextView    intervalNext;
@@ -110,6 +115,7 @@ public class BackupsPreferenceFragment extends Fragment {
     maxFilesSummary = view.findViewById(R.id.fragment_backup_max_files_summary);
     progress        = view.findViewById(R.id.fragment_backup_progress);
     progressSummary = view.findViewById(R.id.fragment_backup_progress_summary);
+    upgradeCard     = view.findViewById(R.id.upgrade_to_improved_backups_card);
     interval        = view.findViewById(R.id.fragment_backup_interval);
     intervalSummary = view.findViewById(R.id.fragment_backup_interval_summary);
     intervalNext    = view.findViewById(R.id.fragment_backup_interval_next);
@@ -139,6 +145,7 @@ public class BackupsPreferenceFragment extends Fragment {
     setInfo();
     //setScheduleSummary();
     setMaxFilesSummary();
+    setUpdateState();
     setIntervalSummary();
     setIntervalNext();
   }
@@ -268,6 +275,24 @@ public class BackupsPreferenceFragment extends Fragment {
 
   private void setMaxFilesSummary() {
     maxFilesSummary.setText(String.valueOf(TextSecurePreferences.getBackupMaxFiles(requireContext())));
+  }
+
+  private void setUpdateState() {
+    if (SignalStore.settings().isBackupEnabled() && Environment.Backups.isNewFormatSupportedForLocalBackup()) {
+      UpgradeLocalBackupCard.bind(upgradeCard, () -> {
+        Navigation.findNavController(requireView())
+                  .navigate(BackupsPreferenceFragmentDirections.actionBackupsPreferenceFragmentToLocalBackupsFragment()
+                                                               .setTriggerUpdateFlow(true));
+        return Unit.INSTANCE;
+      });
+      upgradeCard.setVisibility(View.VISIBLE);
+    } else {
+      upgradeCard.setVisibility(View.GONE);
+    }
+
+    if (SignalStore.backup().getNewLocalBackupsEnabled()) {
+      Navigation.findNavController(requireView()).popBackStack();
+    }
   }
 
   private void onToggleClicked() {

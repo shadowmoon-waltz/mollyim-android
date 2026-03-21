@@ -127,7 +127,6 @@ internal object ConversationOptionsMenu {
             hideMenuItem(menu, R.id.menu_video_secure)
           }
         }
-        menuInflater.inflate(R.menu.conversation_group_options, menu)
         menuInflater.inflate(R.menu.conversation_active_group_options, menu)
       }
 
@@ -170,8 +169,6 @@ internal object ConversationOptionsMenu {
         hideMenuItem(menu, R.id.menu_add_shortcut)
       }
 
-      hideMenuItem(menu, R.id.menu_group_recipients)
-
       if (isActiveV2Group) {
         hideMenuItem(menu, R.id.menu_mute_notifications)
         hideMenuItem(menu, R.id.menu_conversation_settings)
@@ -212,7 +209,6 @@ internal object ConversationOptionsMenu {
         R.id.menu_add_shortcut -> callback.handleAddShortcut()
         R.id.menu_search -> callback.handleSearch()
         R.id.menu_add_to_contacts -> callback.handleAddToContacts()
-        R.id.menu_group_recipients -> callback.handleDisplayGroupRecipients()
         R.id.menu_group_settings -> callback.handleManageGroup()
         R.id.menu_leave -> callback.handleLeavePushGroup()
         R.id.menu_invite -> callback.handleInviteLink()
@@ -283,7 +279,6 @@ internal object ConversationOptionsMenu {
     fun handleAddShortcut()
     fun handleSearch()
     fun handleAddToContacts()
-    fun handleDisplayGroupRecipients()
     fun handleManageGroup()
     fun handleLeavePushGroup()
     fun handleInviteLink()

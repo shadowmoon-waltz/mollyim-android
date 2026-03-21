@@ -35,6 +35,7 @@ object DeleteDialog {
     title: CharSequence? = null,
     message: CharSequence = context.resources.getQuantityString(R.plurals.ConversationFragment_delete_selected_messages, messageRecords.size, messageRecords.size),
     forceRemoteDelete: Boolean = false,
+    isAdmin: Boolean = false,
     forceDeleteForMe: Boolean = false,
     checkFastDeleteForMe: Boolean = false
   ): Single<Pair<Boolean, Boolean>> = Single.create { emitter ->
@@ -52,7 +53,7 @@ object DeleteDialog {
     val isNoteToSelfDelete = isNoteToSelfDelete(messageRecords)
 
     if (forceRemoteDelete) {
-      builder.setPositiveButton(R.string.ConversationFragment_delete_for_everyone) { _, _ -> deleteForEveryone(messageRecords, emitter) }
+      builder.setPositiveButton(R.string.ConversationFragment_delete_for_everyone) { _, _ -> deleteForEveryone(messageRecords = messageRecords, emitter = emitter) }
     } else {
       val positiveButton = if (isNoteToSelfDelete) {
         R.string.ConversationFragment_delete
@@ -65,7 +66,9 @@ object DeleteDialog {
       }
 
       if (MessageConstraintsUtil.isValidRemoteDeleteSend(messageRecords, System.currentTimeMillis()) && !isNoteToSelfDelete) {
-        builder.setNeutralButton(R.string.ConversationFragment_delete_for_everyone) { _, _ -> handleDeleteForEveryone(context, messageRecords, emitter) }
+        builder.setNeutralButton(R.string.ConversationFragment_delete_for_everyone) { _, _ -> handleDeleteForEveryone(context = context, messageRecords = messageRecords, emitter = emitter) }
+      } else if (MessageConstraintsUtil.isValidAdminDeleteSend(messageRecords, System.currentTimeMillis(), isAdmin) && !isNoteToSelfDelete) {
+        builder.setNeutralButton(R.string.ConversationFragment_delete_for_everyone) { _, _ -> handleAdminDeleteForEveryone(context, messageRecords, emitter) }
       }
     }
 
@@ -76,6 +79,18 @@ object DeleteDialog {
 
   private fun isNoteToSelfDelete(messageRecords: Set<MessageRecord>): Boolean {
     return messageRecords.all { messageRecord: MessageRecord -> messageRecord.isOutgoing && messageRecord.toRecipient.isSelf }
+  }
+
+  private fun handleAdminDeleteForEveryone(context: Context, messageRecords: Set<MessageRecord>, emitter: SingleEmitter<Pair<Boolean, Boolean>>) {
+    MaterialAlertDialogBuilder(context)
+      .setTitle("${context.getString(R.string.ConversationFragment_delete_for_everyone_title)} - INTERNAL ONLY")
+      .setMessage(R.string.ConversationFragment_delete_for_everyone_body)
+      .setPositiveButton(R.string.ConversationFragment_delete_for_everyone) { _, _ ->
+        handleDeleteForEveryone(context = context, messageRecords = messageRecords, emitter = emitter)
+      }
+      .setNegativeButton(android.R.string.cancel) { _, _ -> emitter.onSuccess(Pair(false, false)) }
+      .setOnCancelListener { emitter.onSuccess(Pair(false, false)) }
+      .show()
   }
 
   private fun handleDeleteForMe(context: Context, messageRecords: Set<MessageRecord>, emitter: SingleEmitter<Pair<Boolean, Boolean>>) {
@@ -109,7 +124,11 @@ object DeleteDialog {
   private fun deleteForEveryone(messageRecords: Set<MessageRecord>, emitter: SingleEmitter<Pair<Boolean, Boolean>>) {
     SignalExecutors.BOUNDED.execute {
       messageRecords.forEach { message ->
-        MessageSender.sendRemoteDelete(message.id)
+        if (MessageConstraintsUtil.isValidRemoteDeleteSend(message, System.currentTimeMillis())) {
+          MessageSender.sendRemoteDelete(message.id)
+        } else {
+          MessageSender.sendAdminDelete(message.id)
+        }
       }
 
       emitter.onSuccess(Pair(true, false))

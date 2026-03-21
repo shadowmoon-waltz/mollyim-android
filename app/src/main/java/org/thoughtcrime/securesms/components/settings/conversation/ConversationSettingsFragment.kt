@@ -28,14 +28,17 @@ import com.google.android.flexbox.FlexboxLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import io.reactivex.rxjava3.kotlin.subscribeBy
+import org.signal.core.ui.permissions.Permissions
+import org.signal.core.ui.util.ThemeUtil
 import org.signal.core.util.DimensionUnit
 import org.signal.core.util.Result
 import org.signal.core.util.concurrent.LifecycleDisposable
 import org.signal.core.util.concurrent.addTo
 import org.signal.core.util.getParcelableArrayListExtraCompat
+import org.signal.core.util.orNull
+import org.signal.core.util.requireParcelableCompat
 import org.thoughtcrime.securesms.AvatarPreviewActivity
 import org.thoughtcrime.securesms.BlockUnblockDialog
-import org.thoughtcrime.securesms.MuteDialog
 import org.thoughtcrime.securesms.PushContactSelectionActivity
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.badges.BadgeImageView
@@ -64,10 +67,14 @@ import org.thoughtcrime.securesms.components.settings.conversation.preferences.R
 import org.thoughtcrime.securesms.components.settings.conversation.preferences.SharedMediaPreference
 import org.thoughtcrime.securesms.components.settings.conversation.preferences.Utils.formatMutedUntil
 import org.thoughtcrime.securesms.conversation.ConversationIntents
+import org.thoughtcrime.securesms.conversation.colors.ColorizerV2
 import org.thoughtcrime.securesms.database.AttachmentTable
 import org.thoughtcrime.securesms.groups.GroupId
+import org.thoughtcrime.securesms.groups.memberlabel.MemberLabelEducationSheet
+import org.thoughtcrime.securesms.groups.memberlabel.StyledMemberLabel
 import org.thoughtcrime.securesms.groups.ui.GroupErrors
 import org.thoughtcrime.securesms.groups.ui.GroupLimitDialog
+import org.thoughtcrime.securesms.groups.ui.GroupMemberEntry
 import org.thoughtcrime.securesms.groups.ui.LeaveGroupDialog
 import org.thoughtcrime.securesms.groups.ui.addmembers.AddMembersActivity
 import org.thoughtcrime.securesms.groups.ui.addtogroup.AddToGroupsActivity
@@ -80,7 +87,6 @@ import org.thoughtcrime.securesms.mediapreview.MediaIntentFactory
 import org.thoughtcrime.securesms.mediasend.camerax.CameraXUtil
 import org.thoughtcrime.securesms.messagerequests.MessageRequestRepository
 import org.thoughtcrime.securesms.nicknames.NicknameActivity
-import org.thoughtcrime.securesms.permissions.Permissions
 import org.thoughtcrime.securesms.profiles.edit.CreateProfileActivity
 import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.recipients.RecipientExporter
@@ -98,8 +104,8 @@ import org.thoughtcrime.securesms.util.ContextUtil
 import org.thoughtcrime.securesms.util.DateUtils
 import org.thoughtcrime.securesms.util.ExpirationUtil
 import org.thoughtcrime.securesms.util.Material3OnScrollHelper
+import org.thoughtcrime.securesms.util.RemoteConfig
 import org.thoughtcrime.securesms.util.TextSecurePreferences
-import org.thoughtcrime.securesms.util.ThemeUtil
 import org.thoughtcrime.securesms.util.ViewUtil
 import org.thoughtcrime.securesms.util.adapter.mapping.MappingAdapter
 import org.thoughtcrime.securesms.util.navigation.safeNavigate
@@ -114,14 +120,16 @@ private const val REQUEST_CODE_ADD_CONTACT = 2
 private const val REQUEST_CODE_ADD_MEMBERS_TO_GROUP = 3
 private const val REQUEST_CODE_RETURN_FROM_MEDIA = 4
 
-class ConversationSettingsFragment : DSLSettingsFragment(
-  layoutId = R.layout.conversation_settings_fragment,
-  menuId = R.menu.conversation_settings
-) {
+class ConversationSettingsFragment :
+  DSLSettingsFragment(
+    layoutId = R.layout.conversation_settings_fragment,
+    menuId = R.menu.conversation_settings
+  ) {
 
   private val args: ConversationSettingsFragmentArgs by navArgs()
   private val alertTint by lazy { ContextCompat.getColor(requireContext(), R.color.signal_alert_primary) }
   private val alertDisabledTint by lazy { ContextCompat.getColor(requireContext(), R.color.signal_alert_primary_50) }
+  private val colorizer = ColorizerV2()
   private val blockIcon by lazy {
     ContextUtil.requireDrawable(requireContext(), R.drawable.symbol_block_24).apply {
       colorFilter = PorterDuffColorFilter(alertTint, PorterDuff.Mode.SRC_IN)
@@ -183,6 +191,16 @@ class ConversationSettingsFragment : DSLSettingsFragment(
 
     super.onViewCreated(view, savedInstanceState)
 
+    parentFragmentManager.setFragmentResultListener(MemberLabelEducationSheet.RESULT_EDIT_MEMBER_LABEL, viewLifecycleOwner) { _, bundle ->
+      val groupId = bundle.requireParcelableCompat(MemberLabelEducationSheet.KEY_GROUP_ID, GroupId.V2::class.java)
+      navController.safeNavigate(ConversationSettingsFragmentDirections.actionConversationSettingsFragmentToMemberLabelFragment(groupId))
+    }
+
+    parentFragmentManager.setFragmentResultListener(AboutSheet.RESULT_EDIT_MEMBER_LABEL, viewLifecycleOwner) { _, bundle ->
+      val groupId = bundle.requireParcelableCompat(AboutSheet.RESULT_GROUP_ID, GroupId.V2::class.java)
+      navController.safeNavigate(ConversationSettingsFragmentDirections.actionConversationSettingsFragmentToMemberLabelFragment(groupId))
+    }
+
     recyclerView?.addOnScrollListener(ConversationSettingsOnUserScrolledAnimationHelper(toolbarAvatarContainer, toolbarTitle, toolbarBackground))
   }
 
@@ -198,7 +216,9 @@ class ConversationSettingsFragment : DSLSettingsFragment(
       }
 
       REQUEST_CODE_RETURN_FROM_MEDIA -> viewModel.refreshSharedMedia()
+
       REQUEST_CODE_ADD_CONTACT -> viewModel.refreshRecipient()
+
       REQUEST_CODE_VIEW_CONTACT -> viewModel.refreshRecipient()
     }
   }
@@ -432,7 +452,13 @@ class ConversationSettingsFragment : DSLSettingsFragment(
                 .request(Manifest.permission.CAMERA)
                 .ifNecessary()
                 .withRationaleDialog(getString(R.string.CameraXFragment_allow_access_camera), getString(R.string.CameraXFragment_to_capture_photos_and_video_allow_camera), CoreUiR.drawable.symbol_camera_24)
-                .withPermanentDenialDialog(getString(R.string.CameraXFragment_signal_needs_camera_access_capture_photos), null, R.string.CameraXFragment_allow_access_camera, R.string.CameraXFragment_to_capture_photos_videos, getParentFragmentManager())
+                .withPermanentDenialDialog(
+                  getString(R.string.CameraXFragment_signal_needs_camera_access_capture_photos),
+                  null,
+                  R.string.CameraXFragment_allow_access_camera,
+                  R.string.CameraXFragment_to_capture_photos_videos,
+                  getParentFragmentManager()
+                )
                 .onAllGranted { addToGroupStoryDelegate.addToStory(state.recipient.id) }
                 .onAnyDenied { Toast.makeText(requireContext(), R.string.CameraXFragment_signal_needs_camera_access_capture_photos, Toast.LENGTH_LONG).show() }
                 .execute()
@@ -456,9 +482,11 @@ class ConversationSettingsFragment : DSLSettingsFragment(
               YouAreAlreadyInACallSnackbar.show(requireView())
             }
           },
-          onMuteClick = {
+          onMuteClick = { view ->
             if (!state.buttonStripState.isMuted) {
-              MuteDialog.show(requireContext(), viewModel::setMuteUntil)
+              MuteContextMenu.show(view, requireView() as ViewGroup, childFragmentManager, viewLifecycleOwner) { duration ->
+                viewModel.setMuteUntil(duration)
+              }
             } else {
               MaterialAlertDialogBuilder(requireContext())
                 .setMessage(state.recipient.muteUntil.formatMutedUntil(requireContext()))
@@ -520,6 +548,10 @@ class ConversationSettingsFragment : DSLSettingsFragment(
       state.withGroupSettingsState { groupState ->
         enabled = groupState.canEditGroupAttributes && !state.recipient.isBlocked
 
+        colorizer.onGroupMembershipChanged(
+          serviceIds = groupState.allMembers.mapNotNull { it.member.serviceId.orNull() }
+        )
+
         if (manageGroupTweaks) {
           val memberCount = groupState.allMembers.size
 
@@ -528,12 +560,26 @@ class ConversationSettingsFragment : DSLSettingsFragment(
           }
 
           for (member in groupState.members) {
+            val canSetMemberLabel = member.member.isSelf && groupState.canSetOwnMemberLabel
+            val memberLabel = member.getMemberLabel(groupState)
+
             customPref(
               RecipientPreference.Model(
                 recipient = member.member,
                 isAdmin = member.isAdmin,
+                memberLabel = memberLabel,
+                canSetMemberLabel = canSetMemberLabel,
                 lifecycleOwner = viewLifecycleOwner,
-                onClick = {
+                onRowClick = {
+                  if (canSetMemberLabel && memberLabel == null) {
+                    val action = ConversationSettingsFragmentDirections
+                      .actionConversationSettingsFragmentToMemberLabelFragment(groupState.groupId)
+                    navController.safeNavigate(action)
+                  } else {
+                    RecipientBottomSheetDialogFragment.show(parentFragmentManager, member.member.id, groupState.groupId)
+                  }
+                },
+                onAvatarClick = {
                   RecipientBottomSheetDialogFragment.show(parentFragmentManager, member.member.id, groupState.groupId)
                 }
               )
@@ -602,11 +648,19 @@ class ConversationSettingsFragment : DSLSettingsFragment(
 
       if (!state.recipient.isSelf) {
         clickPref(
-          title = DSLSettingsText.from(R.string.ConversationSettingsFragment__sounds_and_notifications),
+          title = if (RemoteConfig.internalUser) {
+            DSLSettingsText.from("${getString(R.string.ConversationSettingsFragment__sounds_and_notifications)} (Internal Only)")
+          } else {
+            DSLSettingsText.from(R.string.ConversationSettingsFragment__sounds_and_notifications)
+          },
           icon = DSLSettingsIcon.from(R.drawable.symbol_speaker_24),
           isEnabled = !state.isDeprecatedOrUnregistered,
           onClick = {
-            val action = ConversationSettingsFragmentDirections.actionConversationSettingsFragmentToSoundsAndNotificationsSettingsFragment(state.recipient.id)
+            val action = if (RemoteConfig.internalUser) {
+              ConversationSettingsFragmentDirections.actionConversationSettingsFragmentToSoundsAndNotificationsSettingsFragment2(state.recipient.id)
+            } else {
+              ConversationSettingsFragmentDirections.actionConversationSettingsFragmentToSoundsAndNotificationsSettingsFragment(state.recipient.id)
+            }
 
             navController.safeNavigate(action)
           }
@@ -683,10 +737,11 @@ class ConversationSettingsFragment : DSLSettingsFragment(
           )
         )
 
+        @Suppress("DEPRECATION")
         clickPref(
           title = DSLSettingsText.from(R.string.ConversationSettingsFragment__see_all),
           onClick = {
-            startActivity(MediaOverviewActivity.forThread(requireContext(), state.threadId))
+            startActivityForResult(MediaOverviewActivity.forThread(requireContext(), state.threadId), REQUEST_CODE_RETURN_FROM_MEDIA)
           }
         )
       }
@@ -757,7 +812,7 @@ class ConversationSettingsFragment : DSLSettingsFragment(
             customPref(
               RecipientPreference.Model(
                 recipient = group,
-                onClick = {
+                onRowClick = {
                   CommunicationActions.startConversation(requireActivity(), group, null)
                   requireActivity().finish()
                 }
@@ -804,12 +859,26 @@ class ConversationSettingsFragment : DSLSettingsFragment(
 
         if (!manageGroupTweaks) {
           for (member in groupState.members) {
+            val canSetMemberLabel = member.member.isSelf && groupState.canSetOwnMemberLabel
+            val memberLabel = member.getMemberLabel(groupState)
+
             customPref(
               RecipientPreference.Model(
                 recipient = member.member,
                 isAdmin = member.isAdmin,
+                memberLabel = memberLabel,
+                canSetMemberLabel = canSetMemberLabel,
                 lifecycleOwner = viewLifecycleOwner,
-                onClick = {
+                onRowClick = {
+                  if (canSetMemberLabel && memberLabel == null) {
+                    val action = ConversationSettingsFragmentDirections
+                      .actionConversationSettingsFragmentToMemberLabelFragment(groupState.groupId)
+                    navController.safeNavigate(action)
+                  } else {
+                    RecipientBottomSheetDialogFragment.show(parentFragmentManager, member.member.id, groupState.groupId)
+                  }
+                },
+                onAvatarClick = {
                   RecipientBottomSheetDialogFragment.show(parentFragmentManager, member.member.id, groupState.groupId)
                 }
               )
@@ -841,6 +910,18 @@ class ConversationSettingsFragment : DSLSettingsFragment(
               navController.safeNavigate(ConversationSettingsFragmentDirections.actionConversationSettingsFragmentToShareableGroupLinkFragment(groupState.groupId.requireV2().toString()))
             }
           )
+
+          if (RemoteConfig.sendMemberLabels) {
+            clickPref(
+              title = DSLSettingsText.from(R.string.ConversationSettingsFragment__group_member_label),
+              icon = DSLSettingsIcon.from(R.drawable.symbol_tag_24),
+              isEnabled = groupState.canSetOwnMemberLabel && !state.isDeprecatedOrUnregistered,
+              onClick = {
+                val action = ConversationSettingsFragmentDirections.actionConversationSettingsFragmentToMemberLabelFragment(groupState.groupId)
+                navController.safeNavigate(action)
+              }
+            )
+          }
 
           clickPref(
             title = DSLSettingsText.from(R.string.ConversationSettingsFragment__requests_and_invites),
@@ -973,6 +1054,15 @@ class ConversationSettingsFragment : DSLSettingsFragment(
     }
   }
 
+  private fun GroupMemberEntry.FullMember.getMemberLabel(
+    groupState: SpecificSettingsState.GroupSettingsState
+  ): StyledMemberLabel? {
+    return groupState.memberLabelsByRecipientId[member.id]?.let { label ->
+      val tintColor = colorizer.getIncomingGroupSenderColor(context = requireContext(), recipient = member)
+      StyledMemberLabel(label, tintColor)
+    }
+  }
+
   private fun formatDisappearingMessagesLifespan(disappearingMessagesLifespan: Int): String {
     return if (disappearingMessagesLifespan <= 0) {
       getString(R.string.preferences_off)
@@ -1009,7 +1099,9 @@ class ConversationSettingsFragment : DSLSettingsFragment(
   }
 
   private fun showGroupInvitesSentDialog(showGroupInvitesSentDialog: ConversationSettingsEvent.ShowGroupInvitesSentDialog) {
-    GroupInviteSentDialog.showInvitesSent(requireContext(), viewLifecycleOwner, showGroupInvitesSentDialog.invitesSentTo)
+    if (showGroupInvitesSentDialog.invitesSentTo.isNotEmpty()) {
+      GroupInviteSentDialog.show(childFragmentManager, showGroupInvitesSentDialog.invitesSentTo)
+    }
   }
 
   private fun showMembersAdded(showMembersAdded: ConversationSettingsEvent.ShowMembersAdded) {
