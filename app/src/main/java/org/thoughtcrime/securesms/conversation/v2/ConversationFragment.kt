@@ -37,6 +37,7 @@ import android.view.View
 import android.view.View.OnFocusChangeListener
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
+import android.view.WindowManager
 import android.view.animation.AnimationUtils
 import android.view.inputmethod.EditorInfo
 import android.widget.ImageButton
@@ -106,6 +107,7 @@ import org.greenrobot.eventbus.ThreadMode
 import org.signal.core.models.media.Media
 import org.signal.core.models.media.TransformProperties
 import org.signal.core.ui.BottomSheetUtil
+import org.signal.core.ui.contracts.OpenDocumentTreeContract
 import org.signal.core.ui.getWindowSizeClass
 import org.signal.core.ui.isSplitPane
 import org.signal.core.ui.logging.LoggingFragment
@@ -145,6 +147,7 @@ import org.thoughtcrime.securesms.components.InsetAwareConstraintLayout
 import org.thoughtcrime.securesms.components.ProgressCardDialogFragment
 import org.thoughtcrime.securesms.components.ScrollToPositionDelegate
 import org.thoughtcrime.securesms.components.SendButton
+import org.thoughtcrime.securesms.components.SignalProgressDialog
 import org.thoughtcrime.securesms.components.ViewBinderDelegate
 import org.thoughtcrime.securesms.components.compose.ActionModeTopBarView
 import org.thoughtcrime.securesms.components.compose.DeleteSyncEducationDialog
@@ -542,6 +545,7 @@ class ConversationFragment :
   private lateinit var markReadHelper: MarkReadHelper
   private lateinit var giphyMp4ProjectionRecycler: GiphyMp4ProjectionRecycler
   private lateinit var addToContactsLauncher: ActivityResultLauncher<Intent>
+  private lateinit var plaintextExportDirectoryLauncher: ActivityResultLauncher<Uri?>
   private lateinit var conversationActivityResultContracts: ConversationActivityResultContracts
   private lateinit var scrollToPositionDelegate: ScrollToPositionDelegate
   private lateinit var adapter: ConversationAdapterV2
@@ -650,7 +654,7 @@ class ConversationFragment :
       FullscreenHelper(requireActivity()).showSystemUI()
     }
 
-    markReadHelper = MarkReadHelper(ConversationId.forConversation(args.threadId), requireContext(), viewLifecycleOwner)
+    markReadHelper = MarkReadHelper(ConversationId.forConversation(args.threadId), requireContext(), viewLifecycleOwner, args.isIncognito)
     markReadHelper.ignoreViewReveals()
 
     attachmentManager = AttachmentManager(requireContext(), requireView(), AttachmentManagerListener())
@@ -661,7 +665,8 @@ class ConversationFragment :
       requireActivity(),
       binding.toolbarBackground,
       viewModel::wallpaperSnapshot,
-      viewLifecycleOwner
+      viewLifecycleOwner,
+      incognito = args.isIncognito
     )
     conversationToolbarOnScrollHelper.attach(binding.conversationItemRecycler)
     presentWallpaper(args.wallpaper)
@@ -672,6 +677,7 @@ class ConversationFragment :
     presentStoryRing()
 
     observeConversationThread()
+    observePlaintextExportState()
 
     viewModel
       .inputReadyState
@@ -776,7 +782,7 @@ class ConversationFragment :
     ConversationUtil.refreshRecipientShortcuts()
 
     if (!args.conversationScreenType.isInBubble) {
-      AppDependencies.messageNotifier.clearVisibleThread()
+      AppDependencies.messageNotifier.clearVisibleThread(ConversationId.forConversation(args.threadId))
     } else {
       AppDependencies.messageNotifier.clearVisibleBubbleThread()
     }
@@ -1432,7 +1438,7 @@ class ConversationFragment :
 
   private fun presentPinnedMessage(pinnedMessages: List<ConversationMessage>, hasWallpaper: Boolean) {
     if (pinnedMessages.isNotEmpty()) {
-      binding.conversationBanner.showPinnedMessageStub(messages = pinnedMessages, canUnpin = conversationGroupViewModel.canEditGroupInfo() && RemoteConfig.sendPinnedMessages, hasWallpaper = hasWallpaper, shouldAnimate = !firstPinRender)
+      binding.conversationBanner.showPinnedMessageStub(messages = pinnedMessages, canUnpin = conversationGroupViewModel.canEditGroupInfo(), hasWallpaper = hasWallpaper, shouldAnimate = !firstPinRender)
     } else {
       binding.conversationBanner.hidePinnedMessageStub()
     }
@@ -1489,6 +1495,7 @@ class ConversationFragment :
     var inputDisabled = true
     when {
       inputReadyState.isClientExpired || inputReadyState.isUnauthorized -> disabledInputView.showAsExpiredOrUnauthorized(inputReadyState.isClientExpired, inputReadyState.isUnauthorized)
+      args.isIncognito -> disabledInputView.showAsIncognito()
       !inputReadyState.messageRequestState.isAccepted -> disabledInputView.showAsMessageRequest(inputReadyState.conversationRecipient, inputReadyState.messageRequestState)
       inputReadyState.isActiveGroup == false -> disabledInputView.showAsNoLongerAMember()
       inputReadyState.isRequestingMember == true -> disabledInputView.showAsRequestingMember()
@@ -1555,7 +1562,77 @@ class ConversationFragment :
 
   private fun registerForResults() {
     addToContactsLauncher = registerForActivityResult(AddToContactsContract()) {}
+    plaintextExportDirectoryLauncher = registerForActivityResult(OpenDocumentTreeContract()) { uri ->
+      if (uri != null) {
+        val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        requireContext().contentResolver.takePersistableUriPermission(uri, takeFlags)
+        viewModel.startPlaintextExport(requireContext().applicationContext, uri)
+      }
+    }
     conversationActivityResultContracts = ConversationActivityResultContracts(this, ActivityResultCallbacks())
+  }
+
+  private fun observePlaintextExportState() {
+    var progressDialog: SignalProgressDialog? = null
+
+    lifecycleScope.launch {
+      viewModel.plaintextExportState.collectLatest { state ->
+        val exporting = state is ConversationViewModel.PlaintextExportState.Preparing || state is ConversationViewModel.PlaintextExportState.InProgress
+        if (exporting) {
+          requireActivity().window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+          requireActivity().window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+
+        when (state) {
+          is ConversationViewModel.PlaintextExportState.None -> {
+            progressDialog?.dismiss()
+            progressDialog = null
+          }
+
+          is ConversationViewModel.PlaintextExportState.Preparing -> {
+            progressDialog = SignalProgressDialog.show(
+              context = requireContext(),
+              title = getString(R.string.conversation_export__exporting),
+              message = getString(R.string.conversation_export__preparing),
+              indeterminate = true,
+              cancelable = false,
+              negativeButtonText = getString(android.R.string.cancel),
+              negativeButtonListener = { _, _ -> viewModel.cancelExport() }
+            )
+          }
+
+          is ConversationViewModel.PlaintextExportState.InProgress -> {
+            progressDialog?.let {
+              it.isIndeterminate = false
+              it.progress = state.percent
+              it.setMessage(state.status)
+            }
+          }
+
+          is ConversationViewModel.PlaintextExportState.Complete -> {
+            progressDialog?.dismiss()
+            progressDialog = null
+            toast(R.string.conversation_export__export_complete, toastDuration = Toast.LENGTH_LONG)
+            viewModel.clearPlaintextExportState()
+          }
+
+          is ConversationViewModel.PlaintextExportState.Failed -> {
+            progressDialog?.dismiss()
+            progressDialog = null
+            toast(R.string.conversation_export__export_failed, toastDuration = Toast.LENGTH_LONG)
+            viewModel.clearPlaintextExportState()
+          }
+
+          is ConversationViewModel.PlaintextExportState.Cancelled -> {
+            progressDialog?.dismiss()
+            progressDialog = null
+            toast(R.string.conversation_export__export_cancelled, toastDuration = Toast.LENGTH_SHORT)
+            viewModel.clearPlaintextExportState()
+          }
+        }
+      }
+    }
   }
 
   private fun onRecipientChanged(recipient: Recipient) {
@@ -4129,6 +4206,10 @@ class ConversationFragment :
     override fun handleDeleteConversation() {
       onDeleteConversation()
     }
+
+    override fun handleExportChat() {
+      plaintextExportDirectoryLauncher.launch(null)
+    }
   }
 
   private inner class OnReactionsSelectedListener : ConversationReactionOverlay.OnReactionSelectedListener {
@@ -4400,7 +4481,7 @@ class ConversationFragment :
         childFragmentManager,
         threadId = args.threadId,
         conversationRecipientId = viewModel.recipientSnapshot?.id!!,
-        canUnpin = conversationGroupViewModel.canEditGroupInfo() && RemoteConfig.sendPinnedMessages
+        canUnpin = conversationGroupViewModel.canEditGroupInfo()
       )
     }
   }
