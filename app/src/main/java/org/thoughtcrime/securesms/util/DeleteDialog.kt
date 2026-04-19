@@ -47,12 +47,13 @@ object DeleteDialog {
     }
 
     val builder = MaterialAlertDialogBuilder(context)
+    val isNoteToSelfDelete = isNoteToSelfDelete(messageRecords)
 
     builder.setTitle(title)
-    builder.setMessage(message)
+    if (!isNoteToSelfDelete) {
+      builder.setMessage(message)
+    }
     builder.setCancelable(true)
-
-    val isNoteToSelfDelete = isNoteToSelfDelete(messageRecords)
 
     if (forceRemoteDelete) {
       builder.setPositiveButton(R.string.ConversationFragment_delete_for_everyone) { _, _ -> deleteForEveryone(messageRecords = messageRecords, emitter = emitter) }

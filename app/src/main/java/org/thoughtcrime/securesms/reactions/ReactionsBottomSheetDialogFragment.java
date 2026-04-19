@@ -34,9 +34,10 @@ import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 
 public final class ReactionsBottomSheetDialogFragment extends BottomSheetDialogFragment {
 
-  private static final String ARGS_MESSAGE_ID = "reactions.args.message.id";
-  private static final String ARGS_IS_MMS     = "reactions.args.is.mms";
-  private static final String ARGS_LOCALE     = "reactions.args.locale";
+  private static final String ARGS_MESSAGE_ID          = "reactions.args.message.id";
+  private static final String ARGS_IS_MMS              = "reactions.args.is.mms";
+  private static final String ARGS_LOCALE              = "reactions.args.locale";
+  private static final String ARGS_IS_GROUP_TERMINATED = "reactions.args.is.group.terminated";
 
   private ViewPager2               recipientPagerView;
   private ReactionViewPagerAdapter recipientsAdapter;
@@ -46,12 +47,17 @@ public final class ReactionsBottomSheetDialogFragment extends BottomSheetDialogF
   private final LifecycleDisposable disposables = new LifecycleDisposable();
 
   public static DialogFragment create(long messageId, boolean isMms, Locale locale) {
+    return create(messageId, isMms, locale, false);
+  }
+
+  public static DialogFragment create(long messageId, boolean isMms, Locale locale, boolean isGroupTerminated) {
     Bundle         args     = new Bundle();
     DialogFragment fragment = new ReactionsBottomSheetDialogFragment();
 
     args.putLong(ARGS_MESSAGE_ID, messageId);
     args.putBoolean(ARGS_IS_MMS, isMms);
     args.putSerializable(ARGS_LOCALE, locale);
+    args.putBoolean(ARGS_IS_GROUP_TERMINATED, isGroupTerminated);
 
     fragment.setArguments(args);
 
@@ -147,7 +153,8 @@ public final class ReactionsBottomSheetDialogFragment extends BottomSheetDialogF
   }
 
   private void setUpRecipientsRecyclerView(Locale locale) {
-    recipientsAdapter = new ReactionViewPagerAdapter(locale, () -> viewModel.removeReactionEmoji());
+    boolean isGroupTerminated = requireArguments().getBoolean(ARGS_IS_GROUP_TERMINATED, false);
+    recipientsAdapter = new ReactionViewPagerAdapter(locale, () -> viewModel.removeReactionEmoji(), isGroupTerminated);
 
     recipientPagerView.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
       @Override

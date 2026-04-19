@@ -26,12 +26,15 @@ final class ReactionRecipientsAdapter extends RecyclerView.Adapter<ReactionRecip
   private ReactionViewPagerAdapter.EventListener listener = null;
   private List<ReactionDetails>                  data     = Collections.emptyList();
 
-  void setListener(ReactionViewPagerAdapter.EventListener listener) {
-    this.listener = listener;
+  private final boolean isGroupTerminated;
+
+  ReactionRecipientsAdapter(Locale locale, boolean isGroupTerminated) {
+    this.locale = locale;
+    this.isGroupTerminated = isGroupTerminated;
   }
 
-  public ReactionRecipientsAdapter(Locale locale) {
-    this.locale = locale;
+  void setListener(ReactionViewPagerAdapter.EventListener listener) {
+    this.listener = listener;
   }
 
   public void updateData(List<ReactionDetails> newData) {
@@ -49,7 +52,7 @@ final class ReactionRecipientsAdapter extends RecyclerView.Adapter<ReactionRecip
 
   @Override
   public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-    holder.bind(data.get(position), locale, listener);
+    holder.bind(data.get(position), locale, listener, isGroupTerminated);
   }
 
   @Override
@@ -77,7 +80,7 @@ final class ReactionRecipientsAdapter extends RecyclerView.Adapter<ReactionRecip
       tapToRemoveText = itemView.findViewById(R.id.reactions_bottom_view_recipient_tap_to_remove_action_text);
     }
 
-    void bind(@NonNull ReactionDetails reaction, Locale locale, ReactionViewPagerAdapter.EventListener listener) {
+    void bind(@NonNull ReactionDetails reaction, Locale locale, ReactionViewPagerAdapter.EventListener listener, boolean isGroupTerminated) {
       this.emoji.setText(reaction.getDisplayEmoji());
       if (locale != null) {
         this.time.setText(DateUtils.getExtendedRelativeTimeSpanString(this.time.getContext(), locale, reaction.getTimestamp()).getFirst());
@@ -90,8 +93,13 @@ final class ReactionRecipientsAdapter extends RecyclerView.Adapter<ReactionRecip
         this.avatar.setAvatar(Glide.with(avatar), null, false);
         this.badge.setBadge(null);
         AvatarUtil.loadIconIntoImageView(reaction.getSender(), avatar);
-        itemView.setOnClickListener((view) -> listener.onClick());
-        tapToRemoveText.setVisibility(View.VISIBLE);
+        if (isGroupTerminated) {
+          itemView.setOnClickListener(null);
+          tapToRemoveText.setVisibility(View.GONE);
+        } else {
+          itemView.setOnClickListener((view) -> listener.onClick());
+          tapToRemoveText.setVisibility(View.VISIBLE);
+        }
       } else {
         this.recipient.setText(reaction.getSender().getDisplayName(itemView.getContext()));
         this.avatar.setAvatar(Glide.with(avatar), reaction.getSender(), false);

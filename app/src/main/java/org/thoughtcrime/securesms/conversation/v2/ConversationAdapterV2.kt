@@ -84,6 +84,7 @@ class ConversationAdapterV2(
   }
 
   private val _selected = hashSetOf<MultiselectPart>()
+  private var adapterPosition = RecyclerView.NO_POSITION
 
   override val selectedItems: Set<MultiselectPart>
     get() = _selected.toSet()
@@ -311,7 +312,30 @@ class ConversationAdapterV2(
   fun toggleSelection(multiselectPart: MultiselectPart) {
     if (multiselectPart.getMessageRecord().isInMemoryMessageRecord) { return }
 
-    if (multiselectPart in _selected) {
+    if (multiselectPart is MultiselectPart.CollapsedHead) {
+      val headId = multiselectPart.conversationMessage.messageRecord.collapsedHeadId
+      val totalChildCount = multiselectPart.conversationMessage.collapsedSize - 1
+      val collapsedChildren: List<MultiselectPart> = mutableListOf<MultiselectPart>().apply {
+        add(getConversationMessage(adapterPosition)!!.multiselectCollection.asDouble().bottomPart)
+        var currentChildCount = 0
+        var offset = 1
+        while (currentChildCount < totalChildCount && adapterPosition - offset >= 0) {
+          val child = getConversationMessage(adapterPosition - offset)
+          if (child != null && child.messageRecord.collapsedHeadId == headId) {
+            add(child.multiselectCollection.asSingle().singlePart)
+            currentChildCount++
+          }
+          offset++
+        }
+      }
+
+      val isSelecting = collapsedChildren.any { it !in _selected }
+      if (isSelecting) {
+        _selected.addAll(collapsedChildren)
+      } else {
+        _selected.removeAll(collapsedChildren.toSet())
+      }
+    } else if (multiselectPart in _selected) {
       mostRecentSelected = null
       _selected.remove(multiselectPart)
     } else {
@@ -422,6 +446,7 @@ class ConversationAdapterV2(
         return
       }
 
+      bindable.setParentScrolling(true)
       bindable.bind(
         lifecycleOwner,
         model.conversationMessage,
@@ -439,6 +464,7 @@ class ConversationAdapterV2(
         colorizer,
         displayMode
       )
+      bindable.setParentScrolling(isParentInScroll)
     }
   }
 
@@ -450,6 +476,7 @@ class ConversationAdapterV2(
         return
       }
 
+      bindable.setParentScrolling(true)
       bindable.bind(
         lifecycleOwner,
         model.conversationMessage,
@@ -467,6 +494,7 @@ class ConversationAdapterV2(
         colorizer,
         displayMode
       )
+      bindable.setParentScrolling(isParentInScroll)
     }
   }
 
@@ -503,10 +531,12 @@ class ConversationAdapterV2(
 
     init {
       itemView.setOnClickListener {
+        this@ConversationAdapterV2.adapterPosition = bindingAdapterPosition
         clickListener.onItemClick(bindable.getMultiselectPartForLatestTouch())
       }
 
       itemView.setOnLongClickListener {
+        this@ConversationAdapterV2.adapterPosition = bindingAdapterPosition
         clickListener.onItemLongClick(
           it,
           bindable.getMultiselectPartForLatestTouch()
@@ -625,10 +655,10 @@ class ConversationAdapterV2(
         }
 
         if (groupInfo.fullMemberCount > 0 || groupInfo.pendingMemberCount > 0) {
-          if (groupInfo.fullMemberCount == 1 && recipient.isActiveGroup) {
+          if (groupInfo.fullMemberCount == 1 && groupInfo.isMember) {
             conversationBanner.hideUnverifiedNameSubtitle()
           }
-          setSubtitle(context, groupInfo.pendingMemberCount, groupInfo.fullMemberCount, groupInfo.membersPreview, recipient)
+          setSubtitle(context, groupInfo.pendingMemberCount, groupInfo.fullMemberCount, groupInfo.membersPreview, groupInfo.isMember, recipient)
         } else {
           conversationBanner.hideSubtitle()
         }
@@ -692,10 +722,10 @@ class ConversationAdapterV2(
       conversationBanner.updateOutlineBoxSize()
     }
 
-    private fun setSubtitle(context: Context, pendingMemberCount: Int, size: Int, members: List<Recipient>, recipient: Recipient) {
+    private fun setSubtitle(context: Context, pendingMemberCount: Int, size: Int, members: List<Recipient>, isMember: Boolean, recipient: Recipient) {
       val names = members.map { member -> member.getDisplayName(context) }
       val otherMembers = if (size > 3) context.resources.getQuantityString(R.plurals.MessageRequestProfileView_other_members, size - 3, size - 3) else null
-      val membersSubtitle = if (recipient.isActiveGroup) {
+      val membersSubtitle = if (isMember) {
         when (names.size) {
           0 -> context.getString(R.string.MessageRequestProfileView_group_members_zero)
           1 -> context.getString(R.string.MessageRequestProfileView_group_members_one_and_you, names[0])

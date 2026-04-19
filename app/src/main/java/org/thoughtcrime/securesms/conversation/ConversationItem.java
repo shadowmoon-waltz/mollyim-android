@@ -44,6 +44,7 @@ import android.view.MotionEvent;
 import android.view.TouchDelegate;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewStub;
 import android.widget.Button;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
@@ -213,6 +214,10 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
   @Nullable private ConversationItemFooter     stickerFooter;
   @Nullable private SenderNameWithLabelView    senderWithLabelView;
   @Nullable private View                       groupSenderHolder;
+  @Nullable private ViewStub                    starredSourceStub;
+  @Nullable private View                       starredSourceWrapper;
+  @Nullable private TextView                   starredSourceView;
+  @Nullable private AvatarImageView            starredSourceAvatar;
   private           AvatarImageView            contactPhoto;
   private           AlertView                  alertView;
   private           ReactionsConversationView  reactionsView;
@@ -331,6 +336,7 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
     this.stickerFooter             = findViewById(R.id.conversation_item_sticker_footer);
     this.senderWithLabelView       = findViewById(R.id.group_sender_name_with_label);
     this.groupSenderHolder         = findViewById(R.id.group_sender_holder);
+    this.starredSourceStub         = findViewById(R.id.conversation_item_starred_source_stub);
     this.alertView                 = findViewById(R.id.indicators_parent);
     this.contactPhoto              = findViewById(R.id.contact_photo);
     this.contactPhotoHolder        = findViewById(R.id.contact_photo_container);
@@ -422,6 +428,7 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
     setContactPhoto(author.get());
     setSenderNameAndLabel(author.get());
     setAuthor(messageRecord, previousMessageRecord, nextMessageRecord, groupThread, hasWallpaper);
+    setStarredSource(messageRecord, conversationMessage);
     setQuote(messageRecord, previousMessageRecord, nextMessageRecord, groupThread);
     setMessageSpacing(context, messageRecord, previousMessageRecord, nextMessageRecord, groupThread);
     setReactions(messageRecord);
@@ -490,7 +497,7 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
 
   @Override
   public boolean dispatchTouchEvent(MotionEvent ev) {
-    if (isCondensedMode()) return super.dispatchTouchEvent(ev);
+    if (isSuppressedInteractionMode()) return super.dispatchTouchEvent(ev);
 
     switch (ev.getAction()) {
       case MotionEvent.ACTION_DOWN:
@@ -739,10 +746,11 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
     }
 
     if (conversationRecipient.getId().equals(modified.getId())) {
-      setBubbleState(messageRecord, modified, modified.getHasWallpaper(), colorizer);
+      boolean wallpaper = modified.getHasWallpaper() && displayMode.displayWallpaper();
+      setBubbleState(messageRecord, modified, wallpaper, colorizer);
 
       if (quoteView != null) {
-        quoteView.setWallpaperEnabled(modified.getHasWallpaper());
+        quoteView.setWallpaperEnabled(wallpaper);
       }
 
       if (audioViewStub.resolved()) {
@@ -1035,6 +1043,13 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
    */
   private boolean isContentCondensed() {
     return isCondensedMode() && !previousMessage.isPresent();
+  }
+
+  /**
+   * Whether interactions like swipe-to-reply and direct media opening should be suppressed.
+   */
+  private boolean isSuppressedInteractionMode() {
+    return isCondensedMode() || displayMode instanceof ConversationItemDisplayMode.Starred;
   }
 
   private boolean isStoryReaction(MessageRecord messageRecord) {
@@ -1591,7 +1606,7 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
       bottomEnd   = 0;
     }
 
-    if (isStartOfMessageCluster(current, previous, isGroupThread) && !current.isOutgoing() && isGroupThread) {
+    if (!(displayMode instanceof ConversationItemDisplayMode.Starred) && isStartOfMessageCluster(current, previous, isGroupThread) && !current.isOutgoing() && isGroupThread) {
       topStart = 0;
       topEnd   = 0;
     }
@@ -1907,7 +1922,7 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
   }
 
   private void setHasBeenQuoted(@NonNull ConversationMessage message) {
-    if (message.hasBeenQuoted() && !isCondensedMode() && quotedIndicator != null && batchSelected.isEmpty() && displayMode != ConversationItemDisplayMode.EditHistory.INSTANCE) {
+    if (message.hasBeenQuoted() && !isSuppressedInteractionMode() && quotedIndicator != null && batchSelected.isEmpty() && displayMode != ConversationItemDisplayMode.EditHistory.INSTANCE) {
       quotedIndicator.setVisibility(VISIBLE);
       quotedIndicator.setOnClickListener(quotedIndicatorClickListener);
     } else if (quotedIndicator != null) {
@@ -1941,7 +1956,7 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
   }
 
   private boolean forceFooter(@NonNull MessageRecord messageRecord) {
-    return hasAudio(messageRecord) || MessageRecordUtil.isEditMessage(messageRecord) || displayMode == ConversationItemDisplayMode.EditHistory.INSTANCE || messageRecord.getPinnedUntil() > 0;
+    return hasAudio(messageRecord) || MessageRecordUtil.isEditMessage(messageRecord) || displayMode == ConversationItemDisplayMode.EditHistory.INSTANCE || messageRecord.getPinnedUntil() > 0 || messageRecord.isStarred();
   }
 
   private boolean forceGroupHeader(@NonNull MessageRecord messageRecord) {
@@ -1984,7 +1999,7 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
 
   @SuppressWarnings("ConstantConditions")
   private void setAuthor(@NonNull MessageRecord current, @NonNull Optional<MessageRecord> previous, @NonNull Optional<MessageRecord> next, boolean isGroupThread, boolean hasWallpaper) {
-    if (isGroupThread && !current.isOutgoing()) {
+    if (isGroupThread && !current.isOutgoing() && !(displayMode instanceof ConversationItemDisplayMode.Starred)) {
       contactPhotoHolder.setVisibility(VISIBLE);
 
       if (!previous.isPresent() || previous.get().isUpdate() || !current.getFromRecipient().equals(previous.get().getFromRecipient()) ||
@@ -2020,6 +2035,32 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
 
       if (badgeImageView != null) {
         badgeImageView.setVisibility(GONE);
+      }
+    }
+  }
+
+  private void setStarredSource(@NonNull MessageRecord current, @NonNull ConversationMessage conversationMessage) {
+    if (starredSourceStub == null && starredSourceWrapper == null) return;
+
+    if (displayMode instanceof ConversationItemDisplayMode.Starred) {
+      if (starredSourceWrapper == null) {
+        starredSourceWrapper = starredSourceStub.inflate();
+        starredSourceView    = starredSourceWrapper.findViewById(R.id.conversation_item_starred_source);
+        starredSourceAvatar  = starredSourceWrapper.findViewById(R.id.conversation_item_starred_source_avatar);
+        starredSourceStub    = null;
+      }
+
+      String senderName = current.getFromRecipient().getShortDisplayName(context);
+      String chatName   = conversationMessage.getThreadRecipient().getShortDisplayName(context);
+
+      starredSourceView.setText(context.getString(R.string.StarredMessages__s_chevron_s, senderName, chatName));
+      starredSourceWrapper.setVisibility(VISIBLE);
+      if (starredSourceAvatar != null) {
+        starredSourceAvatar.setAvatar(requestManager, current.getFromRecipient(), false);
+      }
+    } else {
+      if (starredSourceWrapper != null) {
+        starredSourceWrapper.setVisibility(GONE);
       }
     }
   }
@@ -2149,6 +2190,9 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
   }
 
   private boolean isStartOfMessageCluster(@NonNull MessageRecord current, @NonNull Optional<MessageRecord> previous, boolean isGroupThread) {
+    if (displayMode instanceof ConversationItemDisplayMode.Starred) {
+      return true;
+    }
     if (isGroupThread) {
       return !previous.isPresent() || previous.get().isUpdate() || !DateUtils.isSameDay(current.getTimestamp(), previous.get().getTimestamp()) ||
              !current.getFromRecipient().equals(previous.get().getFromRecipient()) || !isWithinClusteringTime(current, previous.get()) || MessageRecordUtil.isScheduled(current);
@@ -2160,6 +2204,9 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
   }
 
   private boolean isEndOfMessageCluster(@NonNull MessageRecord current, @NonNull Optional<MessageRecord> next, boolean isGroupThread) {
+    if (displayMode instanceof ConversationItemDisplayMode.Starred) {
+      return true;
+    }
     if (isGroupThread) {
       return !next.isPresent() || next.get().isUpdate() || !DateUtils.isSameDay(current.getTimestamp(), next.get().getTimestamp()) ||
              !current.getFromRecipient().equals(next.get().getFromRecipient()) || !current.getReactions().isEmpty() || !isWithinClusteringTime(current, next.get()) ||
@@ -2172,6 +2219,9 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
   }
 
   private boolean isSingularMessage(@NonNull MessageRecord current, @NonNull Optional<MessageRecord> previous, @NonNull Optional<MessageRecord> next, boolean isGroupThread) {
+    if (displayMode instanceof ConversationItemDisplayMode.Starred) {
+      return true;
+    }
     return isStartOfMessageCluster(current, previous, isGroupThread) && isEndOfMessageCluster(current, next, isGroupThread);
   }
 
@@ -2699,7 +2749,7 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
 
   private class ThumbnailClickListener implements SlideClickListener {
     public void onClick(final View v, final Slide slide) {
-      if (shouldInterceptClicks(messageRecord) || !batchSelected.isEmpty() || (isCondensedMode() && (!slide.hasDocument() || (slide.hasDocument() && !MessageRecordUtil.isScheduled(messageRecord))))) {
+      if (shouldInterceptClicks(messageRecord) || !batchSelected.isEmpty() || (isSuppressedInteractionMode() && (!slide.hasDocument() || (slide.hasDocument() && !MessageRecordUtil.isScheduled(messageRecord))))) {
         performClick();
       } else if (!canPlayContent && mediaItem != null && eventListener != null) {
         eventListener.onPlayInlineContent(conversationMessage);

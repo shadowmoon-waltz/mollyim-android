@@ -45,7 +45,11 @@ fun V2ConversationItemMediaIncomingBinding.bridge(): V2ConversationItemMediaBind
     alert = null,
     footerSpace = null,
     isIncoming = true,
-    footerPinned = conversationItemFooterPinned
+    footerPinned = conversationItemFooterPinned,
+    footerStarred = conversationItemFooterStarred,
+    starredSource = conversationItemStarredSource,
+    starredSourceWrapper = conversationItemStarredSourceWrapper,
+    starredSourceAvatar = conversationItemStarredSourceAvatar
   )
 
   return V2ConversationItemMediaBindingBridge(
@@ -77,7 +81,11 @@ fun V2ConversationItemMediaOutgoingBinding.bridge(): V2ConversationItemMediaBind
     alert = conversationItemAlert,
     footerSpace = footerEndPad,
     isIncoming = false,
-    footerPinned = conversationItemFooterPinned
+    footerPinned = conversationItemFooterPinned,
+    footerStarred = conversationItemFooterStarred,
+    starredSource = null,
+    starredSourceWrapper = null,
+    starredSourceAvatar = null
   )
 
   return V2ConversationItemMediaBindingBridge(

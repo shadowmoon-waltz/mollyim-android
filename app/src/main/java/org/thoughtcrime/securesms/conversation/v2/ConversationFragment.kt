@@ -34,7 +34,6 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
-import android.view.View.OnFocusChangeListener
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.view.WindowManager
@@ -50,12 +49,12 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.annotation.MainThread
 import androidx.annotation.StringRes
 import androidx.appcompat.widget.SearchView
-import androidx.appcompat.widget.Toolbar
 import androidx.core.app.ActivityOptionsCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.os.bundleOf
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.doOnPreDraw
 import androidx.core.view.isInvisible
 import androidx.core.view.isVisible
@@ -96,11 +95,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -285,6 +286,7 @@ import org.thoughtcrime.securesms.linkpreview.LinkPreviewViewModelV2
 import org.thoughtcrime.securesms.longmessage.LongMessageFragment
 import org.thoughtcrime.securesms.main.MainNavigationDetailLocation
 import org.thoughtcrime.securesms.main.MainNavigationListLocation
+import org.thoughtcrime.securesms.main.MainNavigationRouter
 import org.thoughtcrime.securesms.main.MainNavigationViewModel
 import org.thoughtcrime.securesms.main.MainSnackbarHostKey
 import org.thoughtcrime.securesms.mediaoverview.MediaOverviewActivity
@@ -449,7 +451,6 @@ class ConversationFragment :
       removeTextChangedListener(composeTextEventsListener)
       setStylingChangedListener(null)
       setOnClickListener(null)
-      removeOnFocusChangeListener(composeTextEventsListener)
     }
 
     dataObserver?.let {
@@ -546,6 +547,7 @@ class ConversationFragment :
   private lateinit var giphyMp4ProjectionRecycler: GiphyMp4ProjectionRecycler
   private lateinit var addToContactsLauncher: ActivityResultLauncher<Intent>
   private lateinit var plaintextExportDirectoryLauncher: ActivityResultLauncher<Uri?>
+  private var exportWithMedia = false
   private lateinit var conversationActivityResultContracts: ConversationActivityResultContracts
   private lateinit var scrollToPositionDelegate: ScrollToPositionDelegate
   private lateinit var adapter: ConversationAdapterV2
@@ -558,6 +560,8 @@ class ConversationFragment :
   private lateinit var conversationItemDecorations: ConversationItemDecorations
   private lateinit var optionsMenuCallback: ConversationOptionsMenuCallback
   private lateinit var sapDoubleTap: SwipeAvailabilityProvider
+
+  private var mainNavRouter: MainNavigationRouter? = null
 
   private var animationsAllowed = false
   private var pinnedShortcutReceiver: BroadcastReceiver? = null
@@ -580,6 +584,7 @@ class ConversationFragment :
   private var progressDialog: ProgressCardDialogFragment? = null
   private var firstPinRender: Boolean = true
   private var skipNextBackPressHandling: Boolean = false
+  private var collapsibleEventScrollPosition: CollapsibleEventScrollPosition? = null
 
   private val jumpAndPulseScrollStrategy = object : ScrollToPositionDelegate.ScrollStrategy {
     override fun performScroll(recyclerView: RecyclerView, layoutManager: LinearLayoutManager, position: Int, smooth: Boolean) {
@@ -631,6 +636,11 @@ class ConversationFragment :
 
   //region Android Lifecycle
 
+  override fun onAttach(context: Context) {
+    super.onAttach(context)
+    mainNavRouter = context as? MainNavigationRouter
+  }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     SignalLocalMetrics.ConversationOpen.start()
@@ -638,13 +648,16 @@ class ConversationFragment :
   }
 
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+    viewModel.resetBackPressedState()
     binding.toolbar.isBackInvokedCallbackEnabled = false
     binding.root.setUseWindowTypes(args.conversationScreenType == ConversationScreenType.NORMAL && !resources.getWindowSizeClass().isSplitPane())
     if (args.conversationScreenType == ConversationScreenType.BUBBLE) {
       binding.root.setNavigationBarInsetOverride(0)
       view.post {
-        ViewCompat.requestApplyInsets(binding.root)
-        binding.root.requestLayout()
+        if (isAdded && this@ConversationFragment.view != null) {
+          ViewCompat.requestApplyInsets(binding.root)
+          binding.root.requestLayout()
+        }
       }
     }
 
@@ -699,7 +712,6 @@ class ConversationFragment :
       startActivity(MemberLabelActivity.createIntent(requireContext(), groupId))
     }
 
-    ToolbarDependentMarginListener(binding.toolbar)
     initializeMediaKeyboard()
 
     binding.conversationVideoContainer.setClipToOutline(true)
@@ -712,8 +724,15 @@ class ConversationFragment :
       viewModel.onChatBoundsChanged(Rect(left, top, right, bottom))
     }
 
-    binding.toolbar.addOnLayoutChangeListener { _, _, _, _, bottom, _, _, _, _ ->
+    binding.toolbar.addOnLayoutChangeListener { _, _, _, _, bottom, _, _, _, oldBottom ->
       binding.conversationItemRecycler.padding(top = bottom)
+      if (bottom != oldBottom && ::threadHeaderMarginDecoration.isInitialized) {
+        val newMargin = bottom + 16.dp
+        if (threadHeaderMarginDecoration.toolbarMargin != newMargin) {
+          threadHeaderMarginDecoration.toolbarMargin = newMargin
+          binding.conversationItemRecycler.invalidateItemDecorations()
+        }
+      }
     }
 
     binding.conversationItemRecycler.addItemDecoration(ChatColorsDrawable.ChatColorsItemDecoration)
@@ -798,11 +817,11 @@ class ConversationFragment :
 
   override fun onConfigurationChanged(newConfig: Configuration) {
     super.onConfigurationChanged(newConfig)
-    ToolbarDependentMarginListener(binding.toolbar)
     inlineQueryController.onWindowSizeClassChanged(resources.getWindowSizeClass())
   }
 
   override fun onDestroyView() {
+    viewModel.collapseAllEvents()
     keyboardEvents?.let {
       container.removeInputListener(it)
       container.removeKeyboardStateListener(it)
@@ -1028,7 +1047,14 @@ class ConversationFragment :
 
       state.isInActionMode -> finishActionMode()
 
-      state.isMediaKeyboardShowing -> container.hideInput()
+      state.isMediaKeyboardShowing -> {
+        if (container.isInputShowing) {
+          container.hideInput()
+        } else {
+          Log.d(TAG, "handleBackPressed() - media keyboard state was stale, clearing")
+          viewModel.setIsMediaKeyboardShowing(false)
+        }
+      }
 
       else -> {
         // State has changed since the back handler was enabled. Let the back press proceed
@@ -1125,6 +1151,13 @@ class ConversationFragment :
               doAfterFirstRender()
             }
           }
+
+          if (collapsibleEventScrollPosition != null) {
+            val scrollState = collapsibleEventScrollPosition!!
+            val offset = binding.conversationItemRecycler.height - scrollState.top - scrollState.height
+            layoutManager.scrollToPositionWithOffset(scrollState.position, offset)
+            collapsibleEventScrollPosition = null
+          }
         }
       })
   }
@@ -1165,6 +1198,26 @@ class ConversationFragment :
 
     viewLifecycleOwner.lifecycle.addObserver(LastScrolledPositionUpdater(adapter, layoutManager, viewModel))
 
+    viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+      var wasTerminated: Boolean? = null
+      viewModel
+        .groupRecordFlow
+        .collect { record ->
+          val isTerminated = record.isTerminated
+          if (wasTerminated == false && isTerminated) {
+            val terminatedByRecipientId = record.terminatedByRecipientId
+            if (terminatedByRecipientId == null || terminatedByRecipientId != Recipient.self().id) {
+              val context = context ?: return@collect
+              val adminName = terminatedByRecipientId?.let { Recipient.resolved(it).getDisplayName(context) }
+              withContext(Dispatchers.Main) {
+                TerminatedGroupBottomSheetDialog.show(childFragmentManager, adminName)
+              }
+            }
+          }
+          wasTerminated = isTerminated
+        }
+    }
+
     disposables += viewModel.recipient
       .observeOn(AndroidSchedulers.mainThread())
       .distinctUntilChanged { r1, r2 -> r1 === r2 || r1.hasSameContent(r2) }
@@ -1200,7 +1253,6 @@ class ConversationFragment :
       addTextChangedListener(composeTextEventsListener)
       setStylingChangedListener(composeTextEventsListener)
       setOnClickListener(composeTextEventsListener)
-      onFocusChangeListener = composeTextEventsListener
       filters += ByteLimitInputFilter(MessageUtil.MAX_TOTAL_BODY_SIZE_BYTES)
     }
 
@@ -1275,10 +1327,11 @@ class ConversationFragment :
     lifecycleScope.launch {
       viewModel
         .pinnedMessages
+        .combine(viewModel.wallpaper) { messages, wallpaper -> messages to wallpaper }
         .flowWithLifecycle(viewLifecycleOwner.lifecycle)
         .flowOn(Dispatchers.Main)
-        .collect {
-          presentPinnedMessage(it, args.wallpaper != null)
+        .collect { (messages, wallpaper) ->
+          presentPinnedMessage(pinnedMessages = messages, hasWallpaper = wallpaper != null)
         }
     }
 
@@ -1392,7 +1445,7 @@ class ConversationFragment :
     viewLifecycleOwner.lifecycle.addObserver(conversationUpdateTick)
 
     if (args.conversationScreenType.isInPopup) {
-      composeText.requestFocus()
+      container.showSoftkey(composeText)
       binding.conversationInputPanel.quickAttachmentToggle.disable()
     }
   }
@@ -1496,9 +1549,10 @@ class ConversationFragment :
     when {
       inputReadyState.isClientExpired || inputReadyState.isUnauthorized -> disabledInputView.showAsExpiredOrUnauthorized(inputReadyState.isClientExpired, inputReadyState.isUnauthorized)
       args.isIncognito -> disabledInputView.showAsIncognito()
+      inputReadyState.isTerminatedGroup -> disabledInputView.showAsTerminatedGroup()
       !inputReadyState.messageRequestState.isAccepted -> disabledInputView.showAsMessageRequest(inputReadyState.conversationRecipient, inputReadyState.messageRequestState)
-      inputReadyState.isActiveGroup == false -> disabledInputView.showAsNoLongerAMember()
       inputReadyState.isRequestingMember == true -> disabledInputView.showAsRequestingMember()
+      inputReadyState.isActiveGroup == false -> disabledInputView.showAsNoLongerAMember()
       inputReadyState.isAnnouncementGroup == true && inputReadyState.isAdmin == false -> disabledInputView.showAsAnnouncementGroupAdminsOnly()
       inputReadyState.conversationRecipient.isReleaseNotes -> disabledInputView.showAsReleaseNotesChannel(inputReadyState.conversationRecipient)
       inputReadyState.shouldShowInviteToSignal() -> disabledInputView.showAsInviteToSignal(requireContext(), inputReadyState.conversationRecipient)
@@ -1566,7 +1620,7 @@ class ConversationFragment :
       if (uri != null) {
         val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
         requireContext().contentResolver.takePersistableUriPermission(uri, takeFlags)
-        viewModel.startPlaintextExport(requireContext().applicationContext, uri)
+        viewModel.startPlaintextExport(requireContext().applicationContext, uri, exportWithMedia)
       }
     }
     conversationActivityResultContracts = ConversationActivityResultContracts(this, ActivityResultCallbacks())
@@ -1640,7 +1694,6 @@ class ConversationFragment :
     presentConversationTitle(recipient)
     presentChatColors(recipient.chatColors)
     invalidateOptionsMenu()
-
     updateMessageRequestAcceptedState(!viewModel.hasMessageRequestState)
   }
 
@@ -1938,6 +1991,22 @@ class ConversationFragment :
       )
   }
 
+  private fun handleStarMessages(messageIds: Set<Long>) {
+    disposables += viewModel
+      .setMessagesStarred(messageIds, true)
+      .subscribeBy(
+        onError = { Log.w(TAG, "Error starring message!", it) }
+      )
+  }
+
+  private fun handleUnstarMessages(messageIds: Set<Long>) {
+    disposables += viewModel
+      .setMessagesStarred(messageIds, false)
+      .subscribeBy(
+        onError = { Log.w(TAG, "Error unstarring message!", it) }
+      )
+  }
+
   private fun handleVideoCall() {
     val recipient = viewModel.recipientSnapshot ?: return
     if (!recipient.isGroup) {
@@ -2139,6 +2208,9 @@ class ConversationFragment :
     )
 
     threadHeaderMarginDecoration = ThreadHeaderMarginDecoration()
+
+    val statusBarInset = ViewCompat.getRootWindowInsets(binding.root)?.getInsets(WindowInsetsCompat.Type.systemBars())?.top ?: 0
+    threadHeaderMarginDecoration.toolbarMargin = statusBarInset + resources.getDimensionPixelSize(R.dimen.signal_m3_toolbar_height) + 16.dp
     binding.conversationItemRecycler.addItemDecoration(threadHeaderMarginDecoration)
 
     conversationItemDecorations = ConversationItemDecorations(hasWallpaper = args.wallpaper != null)
@@ -2577,6 +2649,24 @@ class ConversationFragment :
       )
     }
 
+    if (menuState.shouldShowStarMessage()) {
+      items.add(
+        ActionItem(R.drawable.symbol_star_outline_24, resources.getString(R.string.conversation_selection__menu_star)) {
+          handleStarMessages(selectedParts.map { it.conversationMessage.messageRecord.id }.toSet())
+          finishActionMode()
+        }
+      )
+    }
+
+    if (menuState.shouldShowUnstarMessage()) {
+      items.add(
+        ActionItem(R.drawable.symbol_star_outline_24, resources.getString(R.string.conversation_selection__menu_unstar)) {
+          handleUnstarMessages(selectedParts.map { it.conversationMessage.messageRecord.id }.toSet())
+          finishActionMode()
+        }
+      )
+    }
+
     if (menuState.shouldShowDeleteAction()) {
       items.add(
         ActionItem(CoreUiR.drawable.symbol_trash_24, resources.getString(R.string.conversation_selection__menu_delete)) {
@@ -2908,11 +2998,7 @@ class ConversationFragment :
 
   private fun handleDisplayDetails(conversationMessage: ConversationMessage) {
     val recipientSnapshot = viewModel.recipientSnapshot ?: return
-    if (requireActivity() is MainActivity) {
-      mainNavigationViewModel.goTo(MainNavigationDetailLocation.Chats.MessageDetails(recipientSnapshot.id, conversationMessage.messageRecord.id))
-    } else {
-      MessageDetailsFragment.create(conversationMessage.messageRecord, recipientSnapshot.id).show(requireActivity().supportFragmentManager, MESSAGE_DETAILS_TAG)
-    }
+    navigateTo(MainNavigationDetailLocation.Chats.MessageDetails(recipientSnapshot.id, MessageId(conversationMessage.messageRecord.id)))
   }
 
   private fun handleDeleteMessages(messageParts: Set<MultiselectPart>, forceDeleteForMe: Boolean = false, checkFastDeleteForMe: Boolean = false) {
@@ -2951,6 +3037,14 @@ class ConversationFragment :
   private fun handleEndPoll(pollId: Long?) {
     if (pollId == null) {
       Log.w(TAG, "Unable to find poll to end $pollId")
+      return
+    }
+
+    if (conversationGroupViewModel.groupRecordSnapshot?.isTerminated == true) {
+      MaterialAlertDialogBuilder(requireContext())
+        .setMessage(R.string.conversation_activity__group_action_not_allowed_group_ended)
+        .setPositiveButton(android.R.string.ok) { d, _ -> d.dismiss() }
+        .show()
       return
     }
 
@@ -3434,8 +3528,8 @@ class ConversationFragment :
       context ?: return
       val reactionsTag = "REACTIONS"
       if (parentFragmentManager.findFragmentByTag(reactionsTag) == null) {
-        ReactionsBottomSheetDialogFragment.create(messageId, isMms, if (SignalStore.settings.isShowReactionTimestamps()) Locale.getDefault() else null)
-                                          .show(childFragmentManager, reactionsTag)
+        ReactionsBottomSheetDialogFragment.create(messageId, isMms, if (SignalStore.settings.isShowReactionTimestamps()) Locale.getDefault() else null,
+          conversationGroupViewModel.groupRecordSnapshot?.isTerminated == true).show(childFragmentManager, reactionsTag)
       }
     }
 
@@ -3483,7 +3577,9 @@ class ConversationFragment :
 
     override fun onMessageWithErrorClicked(messageRecord: MessageRecord) {
       val recipientId = viewModel.recipientSnapshot?.id ?: return
-      if (messageRecord.isFailedAdminDelete) {
+      if (conversationGroupViewModel.groupRecordSnapshot?.isTerminated == true) {
+        ConversationDialogs.displayTerminatedGroupSendFailedDialog(requireContext(), messageRecord)
+      } else if (messageRecord.isFailedAdminDelete) {
         val canRetry = MessageConstraintsUtil.isValidAdminDeleteSend(message = messageRecord, currentTime = System.currentTimeMillis(), isAdmin = conversationGroupViewModel.isAdmin(), isResend = true)
         if (messageRecord.isIdentityMismatchFailure && canRetry) {
           SafetyNumberBottomSheet
@@ -3498,10 +3594,8 @@ class ConversationFragment :
           .show(childFragmentManager)
       } else if (messageRecord.hasFailedWithNetworkFailures()) {
         ConversationDialogs.displayMessageCouldNotBeSentDialog(requireContext(), messageRecord)
-      } else if (requireActivity() is MainActivity) {
-        mainNavigationViewModel.goTo(MainNavigationDetailLocation.Chats.MessageDetails(recipientId, messageRecord.id))
       } else {
-        MessageDetailsFragment.create(messageRecord, recipientId).show(requireActivity().supportFragmentManager, MESSAGE_DETAILS_TAG)
+        navigateTo(MainNavigationDetailLocation.Chats.MessageDetails(recipientId, MessageId(messageRecord.id)))
       }
     }
 
@@ -3594,6 +3688,13 @@ class ConversationFragment :
     }
 
     override fun onToggleVote(poll: PollRecord, pollOption: PollOption, isChecked: Boolean) {
+      if (conversationGroupViewModel.groupRecordSnapshot?.isTerminated == true) {
+        MaterialAlertDialogBuilder(requireContext())
+          .setMessage(R.string.conversation_activity__group_action_not_allowed_group_ended)
+          .setPositiveButton(android.R.string.ok) { d, _ -> d.dismiss() }
+          .show()
+        return
+      }
       viewModel.toggleVote(poll, pollOption, isChecked)
     }
 
@@ -3610,7 +3711,14 @@ class ConversationFragment :
     }
 
     override fun onInviteFriendsToGroupClicked(groupId: GroupId.V2) {
-      GroupLinkInviteFriendsBottomSheetDialogFragment.show(requireActivity().supportFragmentManager, groupId)
+      if (conversationGroupViewModel.groupRecordSnapshot?.isTerminated == true) {
+        MaterialAlertDialogBuilder(requireContext())
+          .setMessage(R.string.conversation_activity__group_action_not_allowed_group_ended)
+          .setPositiveButton(android.R.string.ok) { d, _ -> d.dismiss() }
+          .show()
+      } else {
+        GroupLinkInviteFriendsBottomSheetDialogFragment.show(requireActivity().supportFragmentManager, groupId)
+      }
     }
 
     @SuppressLint("NotifyDataSetChanged")
@@ -3667,11 +3775,18 @@ class ConversationFragment :
     }
 
     override fun onBlockJoinRequest(recipient: Recipient) {
-      MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.ConversationFragment__block_request)
-        .setMessage(getString(R.string.ConversationFragment__s_will_not_be_able_to_join_or_request_to_join_this_group_via_the_group_link, recipient.getDisplayName(requireContext())))
-        .setNegativeButton(R.string.ConversationFragment__cancel, null)
-        .setPositiveButton(R.string.ConversationFragment__block_request_button) { _, _ -> handleBlockJoinRequest(recipient) }
-        .show()
+      if (conversationGroupViewModel.groupRecordSnapshot?.isTerminated == true) {
+        MaterialAlertDialogBuilder(requireContext())
+          .setMessage(R.string.conversation_activity__group_action_not_allowed_group_ended)
+          .setPositiveButton(android.R.string.ok) { d, _ -> d.dismiss() }
+          .show()
+      } else {
+        MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.ConversationFragment__block_request)
+          .setMessage(getString(R.string.ConversationFragment__s_will_not_be_able_to_join_or_request_to_join_this_group_via_the_group_link, recipient.getDisplayName(requireContext())))
+          .setNegativeButton(R.string.ConversationFragment__cancel, null)
+          .setPositiveButton(R.string.ConversationFragment__block_request_button) { _, _ -> handleBlockJoinRequest(recipient) }
+          .show()
+      }
     }
 
     override fun onRecipientNameClicked(target: RecipientId) {
@@ -3738,9 +3853,29 @@ class ConversationFragment :
       }
     }
 
+    override fun onExpandEvents(messageId: Long, itemView: View, collapsedSize: Int) {
+      val position = binding.conversationItemRecycler.getChildAdapterPosition(itemView)
+      if (position != RecyclerView.NO_POSITION && position != 0) {
+        collapsibleEventScrollPosition = CollapsibleEventScrollPosition(position = position + (collapsedSize - 1), top = itemView.top, height = itemView.height)
+      }
+      viewModel.onExpandEvents(messageId)
+    }
+
+    override fun onCollapseEvents(messageId: Long, itemView: View, collapsedSize: Int) {
+      val position = binding.conversationItemRecycler.getChildAdapterPosition(itemView)
+      if (position != RecyclerView.NO_POSITION) {
+        collapsibleEventScrollPosition = CollapsibleEventScrollPosition(position = position - (collapsedSize - 1), top = itemView.top, height = itemView.height)
+      }
+      viewModel.onCollapseEvents(messageId)
+    }
+
     override fun onItemClick(item: MultiselectPart) {
       if (isActionModeStarted()) {
-        adapter.toggleSelection(item)
+        if (item.conversationMessage.isActiveCollapsedHead) {
+          viewModel.onExpandEvents(item.conversationMessage.messageRecord.id)
+        } else {
+          adapter.toggleSelection(item)
+        }
         binding.conversationItemRecycler.invalidateItemDecorations()
 
         if (adapter.selectedItems.isEmpty()) {
@@ -3854,6 +3989,10 @@ class ConversationFragment :
             selectedConversationModel,
             object : OnHideListener {
               override fun startHide(focusedView: View?) {
+                if (!lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) || activity == null || activity?.isFinishing == true) {
+                  return
+                }
+
                 multiselectItemDecoration.hideShade(binding.conversationItemRecycler)
                 ViewUtil.fadeOut(binding.reactionsShade, resources.getInteger(R.integer.reaction_scrubber_hide_duration), View.GONE)
 
@@ -3894,6 +4033,8 @@ class ConversationFragment :
             motionEvent
           )
         }
+      } else if (item.conversationMessage.isActiveCollapsedHead) {
+        viewModel.onExpandEvents(item.conversationMessage.messageRecord.id)
       } else {
         clearFocusedItem()
         adapter.toggleSelection(item)
@@ -4098,15 +4239,9 @@ class ConversationFragment :
     }
 
     override fun handleManageGroup() {
-      val recipient = viewModel.recipientSnapshot ?: return
-      val intent = ConversationSettingsActivity.forGroup(requireContext(), recipient.requireGroupId())
-      val bundle = ConversationSettingsActivity.createTransitionBundle(
-        requireContext(),
-        binding.conversationTitleView.root.findViewById(R.id.contact_photo_image),
-        binding.toolbar
-      )
-
-      requireActivity().startActivity(intent, bundle)
+      viewModel.recipientSnapshot?.let { recipient ->
+        navigateTo(MainNavigationDetailLocation.Chats.ConversationSettings(recipient.id))
+      }
     }
 
     override fun handleLeavePushGroup() {
@@ -4140,24 +4275,11 @@ class ConversationFragment :
     }
 
     override fun handleConversationSettings() {
-      val recipient = viewModel.recipientSnapshot ?: return
-      if (recipient.isGroup) {
-        handleManageGroup()
-        return
+      viewModel.recipientSnapshot?.let { recipient ->
+        if (!viewModel.hasMessageRequestState || recipient.isBlocked) {
+          navigateTo(MainNavigationDetailLocation.Chats.ConversationSettings(recipient.id))
+        }
       }
-
-      if (viewModel.hasMessageRequestState && !recipient.isBlocked) {
-        return
-      }
-
-      val intent = ConversationSettingsActivity.forRecipient(requireContext(), recipient.id)
-      val bundle = ConversationSettingsActivity.createTransitionBundle(
-        requireActivity(),
-        binding.conversationTitleView.root.findViewById(R.id.contact_photo_image),
-        binding.toolbar
-      )
-
-      requireActivity().startActivity(intent, bundle)
     }
 
     override fun handleSelectMessageExpiration() {
@@ -4208,8 +4330,64 @@ class ConversationFragment :
     }
 
     override fun handleExportChat() {
-      plaintextExportDirectoryLauncher.launch(null)
+      MaterialAlertDialogBuilder(requireContext())
+        .setTitle(R.string.ChatExportDialogs__export_chat_history_title)
+        .setMessage(R.string.ChatExportDialogs__export_confirm_body)
+        .setPositiveButton(R.string.ChatExportDialogs__export_with_media) { _, _ ->
+          exportWithMedia = true
+          plaintextExportDirectoryLauncher.launch(null)
+        }
+        .setNeutralButton(R.string.ChatExportDialogs__export_without_media) { _, _ ->
+          exportWithMedia = false
+          plaintextExportDirectoryLauncher.launch(null)
+        }
+        .setNegativeButton(android.R.string.cancel, null)
+        .show()
     }
+  }
+
+  /**
+   * Routes to the appropriate destination based on the current window configuration.
+   *
+   * In split-pane mode, delegates to the [MainNavigationRouter] to display content in the detail pane. Otherwise, opens the destination as a standalone screen.
+   */
+  private fun navigateTo(location: MainNavigationDetailLocation.Chats) {
+    val router = mainNavRouter
+    if (router != null && resources.getWindowSizeClass().isSplitPane()) {
+      router.goTo(location)
+    } else {
+      when (location) {
+        is MainNavigationDetailLocation.Chats.MessageDetails -> navigateToMessageDetailsStandalone(location)
+        is MainNavigationDetailLocation.Chats.ConversationSettings -> navigateToConversationSettingsStandalone(viewModel.recipientSnapshot!!)
+        is MainNavigationDetailLocation.Chats.Conversation -> error("ConversationFragment shouldn't navigate to another conversation - use the main navigation infrastructure instead.")
+      }
+    }
+  }
+
+  /**
+   * Opens message details as a standalone (single-pane) screen. Use [navigateTo] as the entry point.
+   */
+  private fun navigateToMessageDetailsStandalone(location: MainNavigationDetailLocation.Chats.MessageDetails) {
+    MessageDetailsFragment.create(location.messageId, location.recipientId)
+      .show(requireActivity().supportFragmentManager, MESSAGE_DETAILS_TAG)
+  }
+
+  /**
+   * Opens conversation settings as a standalone (single-pane) screen.
+   */
+  private fun navigateToConversationSettingsStandalone(recipient: Recipient) {
+    val intent = if (recipient.isPushGroup) {
+      ConversationSettingsActivity.forGroup(requireContext(), recipient.requireGroupId())
+    } else {
+      ConversationSettingsActivity.forRecipient(requireContext(), recipient.id)
+    }
+
+    val bundle = ConversationSettingsActivity.createTransitionBundle(
+      requireActivity(),
+      binding.conversationTitleView.root.findViewById(R.id.contact_photo_image),
+      binding.toolbar
+    )
+    requireActivity().startActivity(intent, bundle)
   }
 
   private inner class OnReactionsSelectedListener : ConversationReactionOverlay.OnReactionSelectedListener {
@@ -4264,6 +4442,8 @@ class ConversationFragment :
         ConversationReactionOverlay.Action.END_POLL -> handleEndPoll(conversationMessage.messageRecord.getPoll()?.id)
         ConversationReactionOverlay.Action.PIN_MESSAGE -> handlePinMessage(conversationMessage)
         ConversationReactionOverlay.Action.UNPIN_MESSAGE -> handleUnpinMessage(conversationMessage.messageRecord.id)
+        ConversationReactionOverlay.Action.STAR_MESSAGE -> handleStarMessages(setOf(conversationMessage.messageRecord.id))
+        ConversationReactionOverlay.Action.UNSTAR_MESSAGE -> handleUnstarMessages(setOf(conversationMessage.messageRecord.id))
       }
     }
   }
@@ -4596,7 +4776,6 @@ class ConversationFragment :
     View.OnKeyListener,
     View.OnClickListener,
     TextWatcher,
-    OnFocusChangeListener,
     ComposeText.CursorPositionChangedListener,
     ComposeText.StylingChangedListener {
 
@@ -4639,12 +4818,6 @@ class ConversationFragment :
         stickerViewModel.onInputTextUpdated(s.toString())
       } else {
         stickerViewModel.onInputTextUpdated("")
-      }
-    }
-
-    override fun onFocusChange(v: View, hasFocus: Boolean) {
-      if (hasFocus) { // && container.getCurrentInput() == emojiDrawerStub.get()) {
-        container.showSoftkey(composeText)
       }
     }
 
@@ -5062,25 +5235,6 @@ class ConversationFragment :
     }
   }
 
-  private inner class ToolbarDependentMarginListener(private val toolbar: Toolbar) : ViewTreeObserver.OnGlobalLayoutListener {
-
-    init {
-      toolbar.viewTreeObserver.addOnGlobalLayoutListener(this)
-    }
-
-    override fun onGlobalLayout() {
-      if (!isAdded || view == null) {
-        return
-      }
-
-      val rect = Rect()
-      toolbar.getGlobalVisibleRect(rect)
-      threadHeaderMarginDecoration.toolbarMargin = rect.bottom + 16.dp
-      binding.conversationItemRecycler.invalidateItemDecorations()
-      toolbar.viewTreeObserver.removeOnGlobalLayoutListener(this)
-    }
-  }
-
   private inner class ThreadHeaderMarginDecoration : RecyclerView.ItemDecoration() {
     var toolbarMargin: Int = 0
 
@@ -5153,4 +5307,9 @@ class ConversationFragment :
   override fun onDoubleTapEditEducationSheetNext(conversationMessage: ConversationMessage) {
     handleEditMessage(conversationMessage)
   }
+
+  /**
+   * Tracks the scroll position so that after collapsing/expanding, we can restore it properly
+   */
+  private data class CollapsibleEventScrollPosition(val position: Int, val top: Int, val height: Int)
 }

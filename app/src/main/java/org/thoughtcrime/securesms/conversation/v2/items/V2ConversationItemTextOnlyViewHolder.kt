@@ -100,7 +100,8 @@ open class V2ConversationItemTextOnlyViewHolder<Model : MappingModel<Model>>(
     binding.footerExpiry,
     binding.deliveryStatus,
     binding.footerBackground,
-    binding.footerPinned
+    binding.footerPinned,
+    binding.footerStarred
   )
 
   override val reactionsView: View = binding.reactions
@@ -264,6 +265,8 @@ open class V2ConversationItemTextOnlyViewHolder<Model : MappingModel<Model>>(
     presentDeliveryStatus()
     presentFooterBackground()
     presentFooterPinned()
+    presentFooterStarred()
+    presentStarredSource()
     presentFooterExpiry()
     presentFooterEndPadding()
     presentAlert()
@@ -567,6 +570,27 @@ open class V2ConversationItemTextOnlyViewHolder<Model : MappingModel<Model>>(
     pinned.visible = conversationMessage.messageRecord.pinnedUntil > 0
   }
 
+  private fun presentFooterStarred() {
+    val starred = binding.footerStarred
+    starred.setColorFilter(themeDelegate.getFooterForegroundColor(conversationMessage), PorterDuff.Mode.SRC_IN)
+    starred.visible = conversationMessage.messageRecord.isStarred
+  }
+
+  private fun presentStarredSource() {
+    val wrapper = binding.starredSourceWrapper ?: return
+    val sourceView = binding.starredSource ?: return
+
+    if (conversationContext.displayMode is ConversationItemDisplayMode.Starred) {
+      val senderName = conversationMessage.messageRecord.fromRecipient.getShortDisplayName(context)
+      val chatName = conversationMessage.threadRecipient.getShortDisplayName(context)
+      sourceView.text = context.getString(R.string.StarredMessages__s_chevron_s, senderName, chatName)
+      wrapper.visible = true
+      binding.starredSourceAvatar?.setAvatar(conversationContext.requestManager, conversationMessage.messageRecord.fromRecipient, false)
+    } else {
+      wrapper.visible = false
+    }
+  }
+
   private fun presentFooterEndPadding() {
     binding.footerSpace?.visibility = if (isForcedFooter() || shape.isEndingShape) {
       View.INVISIBLE
@@ -576,7 +600,8 @@ open class V2ConversationItemTextOnlyViewHolder<Model : MappingModel<Model>>(
   }
 
   private fun presentSender() {
-    if (conversationMessage.threadRecipient.isGroup) {
+    val isStarredMode = conversationContext.displayMode is ConversationItemDisplayMode.Starred
+    if (conversationMessage.threadRecipient.isGroup && !isStarredMode) {
       presentSenderPhoto()
       presentSenderBadge()
       presentSenderNameWithLabel()
@@ -867,7 +892,7 @@ open class V2ConversationItemTextOnlyViewHolder<Model : MappingModel<Model>>(
   }
 
   private fun isForcedFooter(): Boolean {
-    return conversationMessage.messageRecord.isEditMessage || conversationMessage.messageRecord.expiresIn > 0L || conversationMessage.messageRecord.pinnedUntil > 0
+    return conversationMessage.messageRecord.isEditMessage || conversationMessage.messageRecord.expiresIn > 0L || conversationMessage.messageRecord.pinnedUntil > 0 || conversationMessage.messageRecord.isStarred
   }
 
   private inner class ReactionMeasureListener : V2ConversationItemLayout.OnMeasureListener {
