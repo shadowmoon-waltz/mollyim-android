@@ -9,8 +9,6 @@ import android.hardware.camera2.CameraMetadata;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.annimon.stream.Stream;
-
 import org.signal.core.ui.permissions.Permissions;
 import org.signal.core.util.logging.Log;
 import org.signal.ringrtc.CameraControl;
@@ -27,6 +25,8 @@ import org.webrtc.VideoSink;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.thoughtcrime.securesms.ringrtc.CameraState.Direction.BACK;
 import static org.thoughtcrime.securesms.ringrtc.CameraState.Direction.FRONT;
@@ -42,6 +42,10 @@ public class Camera implements CameraControl, CameraVideoCapturer.CameraSwitchHa
 
   private static final String TAG = Log.tag(Camera.class);
 
+  private static final int CAPTURE_WIDTH  = 1280;
+  private static final int CAPTURE_HEIGHT = 720;
+  private static final int CAPTURE_FPS    = 30;
+
   @NonNull  private final Context                   context;
   @Nullable private final CameraVideoCapturer       capturer;
   @Nullable private       CameraEventListener       cameraEventListener;
@@ -50,6 +54,8 @@ public class Camera implements CameraControl, CameraVideoCapturer.CameraSwitchHa
   @NonNull  private       CameraState.Direction     activeDirection;
             private       boolean                   enabled;
             private       boolean                   isInitialized;
+            private       boolean                   capturing;
+            private       boolean                   paused;
             private       int                       orientation;
   @Nullable private volatile VideoSink              vanitySink;
 
@@ -119,10 +125,10 @@ public class Camera implements CameraControl, CameraVideoCapturer.CameraSwitchHa
 
   @Override
   public void setOrientation(@Nullable Integer orientation) {
-    this.orientation = orientation;
+    this.orientation = orientation != null ? orientation : 0;
 
     if (isInitialized && capturer != null) {
-      capturer.setOrientation(orientation);
+      capturer.setOrientation(this.orientation);
     }
   }
 
@@ -131,22 +137,40 @@ public class Camera implements CameraControl, CameraVideoCapturer.CameraSwitchHa
     Log.i(TAG, "setEnabled(): " + enabled);
 
     this.enabled = enabled;
+    this.paused  = false;
 
     if (capturer == null || !isInitialized) {
       return;
     }
 
-    try {
-      if (enabled) {
-        Log.i(TAG, "setEnabled(): starting capture");
-        capturer.startCapture(1280, 720, 30);
-      } else {
-        Log.i(TAG, "setEnabled(): stopping capture");
-        capturer.stopCapture();
-      }
-    } catch (InterruptedException e) {
-      Log.w(TAG, "Got interrupted while trying to stop video capture", e);
+    if (enabled) {
+      startCapture();
+    } else {
+      stopCapture();
     }
+  }
+
+  public void pauseCapture() {
+    if (capturer != null && capturing) {
+      paused = true;
+      stopCapture();
+    }
+  }
+
+  public void resumeCapture() {
+    paused = false;
+    if (capturer != null && isInitialized && enabled && !capturing) {
+      startCapture();
+    }
+  }
+
+  /** Whether the camera should be capturing based on user state, regardless of the current pause status. */
+  public boolean shouldBeCapturing() {
+    return capturer != null && isInitialized && enabled;
+  }
+
+  public boolean isCapturing() {
+    return capturing;
   }
 
   public void setCameraEventListener(@Nullable CameraEventListener cameraEventListener) {
@@ -162,10 +186,18 @@ public class Camera implements CameraControl, CameraVideoCapturer.CameraSwitchHa
     this.vanitySink = vanitySink;
   }
 
+  void deliverToVanitySink(@NonNull VideoFrame videoFrame) {
+    VideoSink sink = vanitySink;
+    if (sink != null) {
+      sink.onFrame(videoFrame);
+    }
+  }
+
   public void dispose() {
     if (capturer != null) {
       capturer.dispose();
       isInitialized = false;
+      capturing     = false;
     }
   }
 
@@ -181,12 +213,28 @@ public class Camera implements CameraControl, CameraVideoCapturer.CameraSwitchHa
     return new CameraState(getActiveDirection(), getCount());
   }
 
-  @Nullable CameraVideoCapturer getCapturer() {
-    return capturer;
-  }
-
   public boolean isInitialized() {
     return isInitialized;
+  }
+
+  private void startCapture() {
+    Log.i(TAG, "startCapture()");
+    try {
+      capturer.startCapture(CAPTURE_WIDTH, CAPTURE_HEIGHT, CAPTURE_FPS);
+      capturing = true;
+    } catch (Exception e) {
+      Log.w(TAG, "Error starting capture", e);
+    }
+  }
+
+  private void stopCapture() {
+    Log.i(TAG, "stopCapture()");
+    try {
+      capturer.stopCapture();
+    } catch (InterruptedException e) {
+      Log.w(TAG, "Interrupted stopping capture", e);
+    }
+    capturing = false;
   }
 
   private @Nullable CameraVideoCapturer createVideoCapturer(@NonNull CameraEnumerator enumerator,
@@ -287,10 +335,10 @@ public class Camera implements CameraControl, CameraVideoCapturer.CameraSwitchHa
 
         if (cameraManager != null) {
           List<String> devices = Stream.of(cameraManager.getCameraIdList())
-                                       .filterNot(id -> isMonochrome(id, cameraManager))
-                                       .toList();
+                                       .filter(id -> !isMonochrome(id, cameraManager))
+                                       .collect(Collectors.toList());
 
-          String frontCamera = Stream.of(devices)
+          String frontCamera = devices.stream()
                                      .filter(id -> isLensFacing(id, cameraManager, CameraMetadata.LENS_FACING_FRONT))
                                      .findFirst()
                                      .orElse(null);
@@ -299,7 +347,7 @@ public class Camera implements CameraControl, CameraVideoCapturer.CameraSwitchHa
             cameraList.add(frontCamera);
           }
 
-          String backCamera = Stream.of(devices)
+          String backCamera = devices.stream()
                                     .filter(id -> isLensFacing(id, cameraManager, CameraMetadata.LENS_FACING_BACK))
                                     .findFirst()
                                     .orElse(null);
@@ -343,6 +391,9 @@ public class Camera implements CameraControl, CameraVideoCapturer.CameraSwitchHa
 
     @Override
     public void onCapturerStopped() {
+      if (paused) {
+        return;
+      }
       observer.onCapturerStopped();
       if (cameraEventListener != null) cameraEventListener.onCameraStopped();
     }
@@ -350,10 +401,6 @@ public class Camera implements CameraControl, CameraVideoCapturer.CameraSwitchHa
     @Override
     public void onFrameCaptured(VideoFrame videoFrame) {
       observer.onFrameCaptured(videoFrame);
-      VideoSink sink = vanitySink;
-      if (sink != null) {
-        sink.onFrame(videoFrame);
-      }
     }
   }
 }

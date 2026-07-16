@@ -849,6 +849,7 @@
             android:name="forQuickRestore"
             android:defaultValue="false"
             app:argType="boolean" />
+
     </action>
 
     <action
@@ -879,7 +880,13 @@
         app:popEnterAnim="@anim/fragment_close_enter"
         app:popExitAnim="@anim/fragment_close_exit"
         app:popUpTo="@id/app_settings"
-        app:popUpToInclusive="true" />
+        app:popUpToInclusive="true">
+
+        <argument
+            android:name="launchCheckoutFlow"
+            android:defaultValue="false"
+            app:argType="boolean" />
+    </action>
 
     <action
         android:id="@+id/action_direct_to_chatsSettingsFragment"
@@ -894,6 +901,16 @@
     <action
         android:id="@+id/action_direct_to_inviteFragment"
         app:destination="@id/inviteFragment"
+        app:enterAnim="@anim/fragment_open_enter"
+        app:exitAnim="@anim/fragment_open_exit"
+        app:popEnterAnim="@anim/fragment_close_enter"
+        app:popExitAnim="@anim/fragment_close_exit"
+        app:popUpTo="@id/app_settings"
+        app:popUpToInclusive="true" />
+
+    <action
+        android:id="@+id/action_direct_to_accountSettingsFragment"
+        app:destination="@id/accountSettingsFragment"
         app:enterAnim="@anim/fragment_open_enter"
         app:exitAnim="@anim/fragment_open_exit"
         app:popEnterAnim="@anim/fragment_close_enter"
@@ -959,6 +976,9 @@
         <action
             android:id="@+id/action_internalSettingsFragment_to_dataSeedingPlaygroundFragment"
             app:destination="@id/dataSeedingPlaygroundFragment" />
+        <action
+            android:id="@+id/action_internalSettingsFragment_to_internalIssuesFragment"
+            app:destination="@id/internalIssuesFragment" />
     </fragment>
 
     <fragment
@@ -1025,6 +1045,11 @@
         android:id="@+id/dataSeedingPlaygroundFragment"
         android:name="org.thoughtcrime.securesms.components.settings.app.internal.dataseeding.DataSeedingPlaygroundFragment"
         android:label="data_seeding_playground_fragment" />
+
+    <fragment
+        android:id="@+id/internalIssuesFragment"
+        android:name="org.thoughtcrime.securesms.components.settings.app.internal.issues.InternalIssuesFragment"
+        android:label="internal_issues_fragment" />
 
     <!-- endregion -->
 
@@ -1303,6 +1328,11 @@
             app:popEnterAnim="@anim/fragment_close_enter"
             app:popExitAnim="@anim/fragment_close_exit" />
 
+        <argument
+            android:name="launchCheckoutFlow"
+            android:defaultValue="false"
+            app:argType="boolean" />
+
     </fragment>
 
     <fragment
@@ -1326,6 +1356,7 @@
             android:name="forQuickRestore"
             app:argType="boolean"
             android:defaultValue="false" />
+
     </fragment>
 
     <fragment

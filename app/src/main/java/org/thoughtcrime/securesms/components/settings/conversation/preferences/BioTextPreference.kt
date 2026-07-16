@@ -6,6 +6,7 @@ import android.text.SpannableStringBuilder
 import android.view.View
 import android.widget.TextView
 import android.widget.Toast
+import org.signal.core.util.ServiceUtil
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.settings.PreferenceModel
 import org.thoughtcrime.securesms.fonts.SignalSymbols
@@ -56,7 +57,7 @@ object BioTextPreference {
 
     override fun getSubhead1Text(context: Context): String? {
       return if (recipient.isReleaseNotes) {
-        context.getString(R.string.ReleaseNotes__signal_release_notes_and_news)
+        null
       } else {
         recipient.combinedAboutAndEmoji
       }
