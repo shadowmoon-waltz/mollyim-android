@@ -78,7 +78,7 @@ public final class SettingsValues extends SignalStoreValues {
   public static final int BACKUP_DEFAULT_MINUTE = 0;
 
   public static final String SHOW_REACTION_TIMESTAMPS                = "settings.fork.show.reaction.timestamps";
-  public static final String FORCE_WEBSOCKET_MODE                    = "settings.fork.force.websocket.mode";
+  public static final String FORCE_WEBSOCKET_MODE_SW                 = "settings.fork.force.websocket.mode";
   public static final String FAST_CUSTOM_REACTION_CHANGE             = "settings.fork.fast.custom.reaction.change";
   public static final String COPY_TEXT_OPENS_POPUP                   = "settings.fork.copy.text.opens.popup";
   public static final String CONVERSATION_DELETE_IN_MENU             = "settings.conversation.delete.in.menu";
@@ -162,7 +162,7 @@ public final class SettingsValues extends SignalStoreValues {
                          USE_COMPACT_NAVIGATION_BAR,
                          THREAD_TRIM_SYNC_TO_LINKED_DEVICES,
                          SHOW_REACTION_TIMESTAMPS,
-                         FORCE_WEBSOCKET_MODE,
+                         FORCE_WEBSOCKET_MODE_SW,
                          FAST_CUSTOM_REACTION_CHANGE,
                          COPY_TEXT_OPENS_POPUP,
                          CONVERSATION_DELETE_IN_MENU,
@@ -616,12 +616,12 @@ public final class SettingsValues extends SignalStoreValues {
     putBoolean(SHOW_REACTION_TIMESTAMPS, showReactionTimestamps);
   }
 
-  public boolean isForceWebsocketMode() {
-    return getBoolean(FORCE_WEBSOCKET_MODE, TextSecurePreferences.isForceWebsocketMode(AppDependencies.getApplication()));
+  public boolean isForceWebsocketModeSW() {
+    return getBoolean(FORCE_WEBSOCKET_MODE_SW, TextSecurePreferences.isForceWebsocketModeSW(AppDependencies.getApplication()));
   }
 
-  public void setForceWebsocketMode(boolean forceWebsocketMode) {
-    putBoolean(FORCE_WEBSOCKET_MODE, forceWebsocketMode);
+  public void setForceWebsocketModeSW(boolean forceWebsocketMode) {
+    putBoolean(FORCE_WEBSOCKET_MODE_SW, forceWebsocketMode);
   }
 
   public boolean isFastCustomReactionChange() {

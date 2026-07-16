@@ -177,7 +177,7 @@ public class TextSecurePreferences {
 
   private static final String PREF_SHOW_REACTION_TIME = "pref_show_reaction_time";
 
-  private static final String PREF_FORCE_WEBSOCKET_MODE = "pref_force_websocket_mode";
+  private static final String PREF_FORCE_WEBSOCKET_MODE_SW = "pref_force_websocket_mode";
 
   private static final String PREF_FAST_CUSTOM_REACTION_CHANGE = "pref_fast_custom_reaction_change";
 
@@ -229,7 +229,7 @@ public class TextSecurePreferences {
                                                               SYSTEM_EMOJI_PREF,
                                                               ENTER_SENDS_PREF,
                                                               PREF_SHOW_REACTION_TIME,
-                                                              PREF_FORCE_WEBSOCKET_MODE,
+                                                              PREF_FORCE_WEBSOCKET_MODE_SW,
                                                               PREF_FAST_CUSTOM_REACTION_CHANGE,
                                                               PREF_COPY_TEXT_OPENS_POPUP,
                                                               PREF_CONVERSATION_DELETE_IN_MENU,
@@ -1059,12 +1059,12 @@ public class TextSecurePreferences {
     setBooleanPreference(context, PREF_SHOW_REACTION_TIME, enabled);
   }
 
-  public static boolean isForceWebsocketMode(Context context) {
-    return getBooleanPreference(context, PREF_FORCE_WEBSOCKET_MODE, false);
+  public static boolean isForceWebsocketModeSW(Context context) {
+    return getBooleanPreference(context, PREF_FORCE_WEBSOCKET_MODE_SW, false);
   }
 
-  public static void setForceWebsocketMode(Context context, boolean enabled) {
-    setBooleanPreference(context, PREF_FORCE_WEBSOCKET_MODE, enabled);
+  public static void setForceWebsocketModeSW(Context context, boolean enabled) {
+    setBooleanPreference(context, PREF_FORCE_WEBSOCKET_MODE_SW, enabled);
   }
 
   public static boolean isFastCustomReactionChange(Context context) {

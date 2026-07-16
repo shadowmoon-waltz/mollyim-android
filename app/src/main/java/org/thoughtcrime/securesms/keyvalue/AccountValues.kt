@@ -425,7 +425,7 @@ class AccountValues internal constructor(store: KeyValueStore, context: Context)
   // SW: retaining non-booleanValue version of this function due to the isForceWebsocketMode check
   var fcmEnabled: Boolean
     @JvmName("isFcmEnabled")
-    get() = getBoolean(KEY_FCM_ENABLED, false) && !SignalStore.settings.isForceWebsocketMode()
+    get() = getBoolean(KEY_FCM_ENABLED, false) && !SignalStore.settings.isForceWebsocketModeSW()
     set(value) = putBoolean(KEY_FCM_ENABLED, value)
 
   val canReceiveFcm: Boolean

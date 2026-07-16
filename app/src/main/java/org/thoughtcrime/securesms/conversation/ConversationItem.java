@@ -470,7 +470,7 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
     } else if (SwipeActionTypes.SHOW_OPTIONS.equals(action)) {
       icon.setImageResource(R.drawable.ic_more_vert_24);
     } else if (SwipeActionTypes.NOTE_TO_SELF.equals(action)) {
-      icon.setImageResource(R.drawable.ic_note_24);
+      icon.setImageResource(R.drawable.symbol_note_24);
     } else if (SwipeActionTypes.MULTI_SELECT.equals(action)) {
       icon.setImageResource(org.signal.core.ui.R.drawable.symbol_check_circle_24);
     } else if (SwipeActionTypes.EDIT.equals(action)) {

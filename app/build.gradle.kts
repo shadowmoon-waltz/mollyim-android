@@ -89,7 +89,7 @@ android {
     }
     if (signConfigExists) {
       create("swSign").apply {
-        storeFile = file(project.property("keystoreFile"))
+        storeFile = file(project.property("keystoreFile")!!)
         storePassword = project.property("keystorePassword") as String
         keyAlias = project.property("keystoreAlias") as String
         keyPassword = project.property("keystoreAliasPassword") as String

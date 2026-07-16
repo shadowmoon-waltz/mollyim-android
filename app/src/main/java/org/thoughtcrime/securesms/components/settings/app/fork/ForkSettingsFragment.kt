@@ -48,7 +48,7 @@ class ForkSettingsFragment : DSLSettingsFragment(R.string.preferences__fork_spec
         summary = DSLSettingsText.from(R.string.ForkSettingsFragment__force_websocket_mode_summary),
         isChecked = state.forceWebsocketMode,
         onClick = {
-          TextSecurePreferences.setForceWebsocketMode(requireContext(), !state.forceWebsocketMode)
+          TextSecurePreferences.setForceWebsocketModeSW(requireContext(), !state.forceWebsocketMode)
           viewModel.setForceWebsocketMode(!state.forceWebsocketMode)
         }
       )

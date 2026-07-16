@@ -37,8 +37,6 @@ import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.ListAdapter;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.annimon.stream.Collectors;
-import com.annimon.stream.Stream;
 import androidx.media3.common.MediaItem;
 
 import com.bumptech.glide.RequestManager;
@@ -70,6 +68,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Adapter that renders a conversation.
@@ -592,7 +591,7 @@ public class ConversationAdapter
   }
 
   public void removeFromSelection(@NonNull Set<MultiselectPart> parts) {
-    clearMostRecentSelectedIfNecessary(Stream.of(parts).map(MultiselectPart::getConversationMessage).collect(Collectors.toSet()));
+    clearMostRecentSelectedIfNecessary(parts.stream().map(MultiselectPart::getConversationMessage).collect(Collectors.toSet()));
     selected.removeAll(parts);
     updateSelected();
   }
