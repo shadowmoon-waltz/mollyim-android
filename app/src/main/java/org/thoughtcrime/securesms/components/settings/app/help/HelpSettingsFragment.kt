@@ -77,6 +77,7 @@ class HelpSettingsFragment : ComposeFragment() {
           )
         }
 
+        /*
         item {
           Rows.TextRow(
             text = stringResource(id = R.string.HelpSettingsFragment__contact_us),
@@ -85,6 +86,7 @@ class HelpSettingsFragment : ComposeFragment() {
             }
           )
         }
+        */
 
         item {
           Dividers.Default()
@@ -164,8 +166,11 @@ class HelpSettingsFragment : ComposeFragment() {
             TextAndLabel(
               label = StringBuilder().apply {
                 append(getString(R.string.HelpFragment__copyright_signal_messenger))
+                append(", shadowmoon_waltz")
                 append("\n")
                 append(getString(R.string.HelpFragment__licenced_under_the_agplv3))
+                append("\n")
+                append("MollySW (this app) is a unaffiliated fork of Molly")
                 append("\n")
                 append(getString(R.string.HelpSettingsFragment__signal_is_a_501c3))
               }.toString()

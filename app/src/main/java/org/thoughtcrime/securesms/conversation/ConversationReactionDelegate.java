@@ -6,6 +6,7 @@ import android.view.MotionEvent;
 import android.view.View;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import org.thoughtcrime.securesms.database.model.MessageRecord;
 import org.thoughtcrime.securesms.recipients.Recipient;
@@ -40,9 +41,10 @@ public final class ConversationReactionDelegate {
                    @NonNull ConversationMessage conversationMessage,
                    boolean isNonAdminInAnnouncementGroup,
                    @NonNull SelectedConversationModel selectedConversationModel,
-                   boolean canEditGroupInfo)
+                   boolean canEditGroupInfo,
+                   @Nullable MotionEvent motionEvent)
   {
-    resolveOverlay().show(activity, conversationRecipient, conversationMessage, lastSeenDownPoint, isNonAdminInAnnouncementGroup, selectedConversationModel, canEditGroupInfo);
+    resolveOverlay().show(activity, conversationRecipient, conversationMessage, lastSeenDownPoint, isNonAdminInAnnouncementGroup, selectedConversationModel, canEditGroupInfo, motionEvent);
   }
 
   public void hide() {

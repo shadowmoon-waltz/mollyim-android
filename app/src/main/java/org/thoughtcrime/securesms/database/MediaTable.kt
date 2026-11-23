@@ -277,6 +277,9 @@ class MediaTable internal constructor(context: Context?, databaseHelper: SignalD
       Sorting.Newest -> " ORDER BY ${MessageTable.TABLE_NAME}.${MessageTable.DATE_SENT} DESC"
       Sorting.Oldest -> " ORDER BY ${MessageTable.TABLE_NAME}.${MessageTable.DATE_SENT} ASC"
       Sorting.Largest -> " ORDER BY ${AttachmentTable.TABLE_NAME}.${AttachmentTable.DATA_SIZE} DESC"
+      // TODO: SW: need new indices?
+      Sorting.ContentTypeLargest -> " ORDER BY ${AttachmentTable.TABLE_NAME}.${AttachmentTable.CONTENT_TYPE} DESC, ${AttachmentTable.TABLE_NAME}.${AttachmentTable.DATA_SIZE} DESC"
+      Sorting.ContentTypeNewest -> " ORDER BY ${AttachmentTable.TABLE_NAME}.${AttachmentTable.CONTENT_TYPE} DESC, ${MessageTable.TABLE_NAME}.${MessageTable.DATE_SENT} DESC"
     }
     val query = applyEqualityOperator(threadId, LINK_MEDIA_QUERY) + orderBy
     val args = arrayOf(threadId.toString())
@@ -292,6 +295,9 @@ class MediaTable internal constructor(context: Context?, databaseHelper: SignalD
       Sorting.Newest -> " ORDER BY $MEDIA_MESSAGE_ID DESC"
       Sorting.Oldest -> " ORDER BY $MEDIA_MESSAGE_ID ASC"
       Sorting.Largest -> " ORDER BY ${AttachmentTable.DATA_SIZE} DESC"
+      // TODO: SW: need new indices?
+      Sorting.ContentTypeLargest -> " ORDER BY ${AttachmentTable.CONTENT_TYPE} DESC, ${AttachmentTable.DATA_SIZE} DESC"
+      Sorting.ContentTypeNewest -> " ORDER BY ${AttachmentTable.CONTENT_TYPE} DESC, $MEDIA_MESSAGE_ID DESC"
     }
 
     var query = "$allMediaSubquery UNION ALL $linkSubquery$orderBy"
@@ -406,6 +412,21 @@ class MediaTable internal constructor(context: Context?, databaseHelper: SignalD
         ${AttachmentTable.TABLE_NAME}.${AttachmentTable.DATA_SIZE} DESC, 
         ${AttachmentTable.TABLE_NAME}.${AttachmentTable.DISPLAY_ORDER} DESC
       """
+    ),
+    ContentTypeLargest(
+      """
+        ${AttachmentTable.TABLE_NAME}.${AttachmentTable.CONTENT_TYPE} DESC,
+        ${AttachmentTable.TABLE_NAME}.${AttachmentTable.DATA_SIZE} DESC,
+        ${AttachmentTable.TABLE_NAME}.${AttachmentTable.DISPLAY_ORDER} DESC
+      """
+    ),
+    ContentTypeNewest(
+      """
+        ${AttachmentTable.TABLE_NAME}.${AttachmentTable.CONTENT_TYPE} DESC,
+        ${AttachmentTable.TABLE_NAME}.${AttachmentTable.MESSAGE_ID} DESC,
+        ${AttachmentTable.TABLE_NAME}.${AttachmentTable.DISPLAY_ORDER} DESC,
+        ${AttachmentTable.TABLE_NAME}.${AttachmentTable.ID} DESC
+      """
     );
 
     private val postFix: String
@@ -418,8 +439,13 @@ class MediaTable internal constructor(context: Context?, databaseHelper: SignalD
       return query + postFix
     }
 
+    // SW : includes content type newest because I want to show file sizes in that case (for display
+    //      still groups by content type due to an earlier isRelatedToContentType check)
     val isRelatedToFileSize: Boolean
-      get() = this == Largest
+      get() = (this == Largest || this == ContentTypeLargest || this == ContentTypeNewest)
+
+    val isRelatedToContentType: Boolean
+      get() = (this == ContentTypeLargest || this == ContentTypeNewest)
 
     companion object {
       fun deserialize(code: Int): Sorting {

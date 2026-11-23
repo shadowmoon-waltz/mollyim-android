@@ -15,6 +15,7 @@ import org.thoughtcrime.securesms.groups.memberlabel.MemberLabelPillView
 import org.thoughtcrime.securesms.groups.memberlabel.StyledMemberLabel
 import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.util.SpanUtil
+import org.thoughtcrime.securesms.util.TextSecurePreferences
 import org.thoughtcrime.securesms.util.adapter.mapping.LayoutFactory
 import org.thoughtcrime.securesms.util.adapter.mapping.MappingAdapter
 import org.thoughtcrime.securesms.util.adapter.mapping.MappingViewHolder
@@ -127,6 +128,15 @@ object RecipientPreference {
           memberLabelView?.visible = false
           addMemberLabelView?.visible = false
           about?.visible = false
+        }
+      }
+
+      // TODO: probably should migrate to using newer pref store
+      if (about?.visible == false && TextSecurePreferences.isAlsoShowProfileName(context)) {
+        val displayName2 = recipient.getDisplayName2(context)
+        if (!displayName2.isNullOrEmpty()) {
+          about?.text = displayName2
+          about?.visible = true
         }
       }
     }

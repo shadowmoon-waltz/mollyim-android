@@ -40,7 +40,6 @@ import org.signal.core.util.getParcelableArrayListExtraCompat
 import org.signal.core.util.orNull
 import org.signal.core.util.requireDrawable
 import org.signal.core.util.requireParcelableCompat
-import org.signal.donations.InAppPaymentType
 import org.thoughtcrime.securesms.AvatarPreviewActivity
 import org.thoughtcrime.securesms.BlockUnblockDialog
 import org.thoughtcrime.securesms.MainActivity
@@ -60,7 +59,6 @@ import org.thoughtcrime.securesms.components.settings.DSLSettingsIcon
 import org.thoughtcrime.securesms.components.settings.DSLSettingsText
 import org.thoughtcrime.securesms.components.settings.NO_TINT
 import org.thoughtcrime.securesms.components.settings.app.AppSettingsActivity
-import org.thoughtcrime.securesms.components.settings.app.subscription.donate.CheckoutFlowActivity
 import org.thoughtcrime.securesms.components.settings.configure
 import org.thoughtcrime.securesms.components.settings.conversation.preferences.AvatarPreference
 import org.thoughtcrime.securesms.components.settings.conversation.preferences.BioTextPreference
@@ -117,6 +115,7 @@ import org.thoughtcrime.securesms.util.DateUtils
 import org.thoughtcrime.securesms.util.ExpirationUtil
 import org.thoughtcrime.securesms.util.Material3OnScrollHelper
 import org.thoughtcrime.securesms.util.RemoteConfig
+import org.thoughtcrime.securesms.util.TextSecurePreferences
 import org.thoughtcrime.securesms.util.ViewUtil
 import org.thoughtcrime.securesms.util.WindowUtil
 import org.thoughtcrime.securesms.util.adapter.mapping.MappingAdapter
@@ -407,11 +406,17 @@ class ConversationSettingsFragment :
         )
       }
 
+      val manageGroupTweaks = TextSecurePreferences.isManageGroupTweaks(requireContext())
+
       state.withGroupSettingsState { groupState ->
 
         val groupMembershipDescription = if (groupState.groupId.isV1) {
-          String.format("%s · %s", groupState.membershipCountDescription, getString(R.string.ManageGroupActivity_legacy_group))
-        } else if (!groupState.canEditGroupAttributes && groupState.groupDescription.isNullOrEmpty()) {
+          if (!manageGroupTweaks) {
+            String.format("%s · %s", groupState.membershipCountDescription, getString(R.string.ManageGroupActivity_legacy_group))
+          } else {
+            getString(R.string.ManageGroupActivity_legacy_group)
+          }
+        } else if (!manageGroupTweaks && !groupState.canEditGroupAttributes && groupState.groupDescription.isNullOrEmpty()) {
           groupState.membershipCountDescription
         } else {
           null
@@ -568,8 +573,69 @@ class ConversationSettingsFragment :
       }
 
       var enabled = !state.recipient.isBlocked
-      state.withGroupSettingsState {
-        enabled = it.canEditGroupAttributes && !state.recipient.isBlocked
+      state.withGroupSettingsState { groupState ->
+        enabled = groupState.canEditGroupAttributes && !state.recipient.isBlocked
+
+        colorizer.onGroupMembershipChanged(
+          serviceIds = groupState.allMembers.mapNotNull { it.member.serviceId.orNull() }
+        )
+
+        // TODO: fix manageGroupTweaks
+        if (manageGroupTweaks) {
+          val memberCount = groupState.allMembers.size
+
+          if (memberCount > 0) {
+            val memberHeaderText = if (groupState.isTerminated) {
+              resources.getQuantityString(R.plurals.ConversationSettingsFragment__d_former_members, memberCount, memberCount)
+            } else {
+              resources.getQuantityString(R.plurals.ContactSelectionListFragment_d_members, memberCount, memberCount)
+            }
+            sectionHeaderPref(DSLSettingsText.from(memberHeaderText))
+          }
+
+          for (member in groupState.members) {
+            val canSetMemberLabel = member.member.isSelf && groupState.canSetOwnMemberLabel
+            val memberLabel = member.getMemberLabel(groupState)
+
+            customPref(
+              RecipientPreference.Model(
+                recipient = member.member,
+                isAdmin = member.isAdmin,
+                memberLabel = memberLabel,
+                canSetMemberLabel = canSetMemberLabel,
+                lifecycleOwner = viewLifecycleOwner,
+                onRowClick = {
+                  if (canSetMemberLabel && memberLabel == null) {
+                    val action = ConversationSettingsFragmentDirections
+                      .actionConversationSettingsFragmentToMemberLabelFragment(groupState.groupId)
+                    navController.safeNavigate(action)
+                  } else {
+                    RecipientBottomSheetDialogFragment.show(parentFragmentManager, member.member.id, groupState.groupId)
+                  }
+                },
+                onAvatarClick = {
+                  RecipientBottomSheetDialogFragment.show(parentFragmentManager, member.member.id, groupState.groupId)
+                }
+              )
+            )
+          }
+
+          if (groupState.canShowMoreGroupMembers) {
+            customPref(
+              LargeIconClickPreference.Model(
+                title = DSLSettingsText.from(R.string.ConversationSettingsFragment__see_all),
+                icon = DSLSettingsIcon.from(R.drawable.show_more, NO_TINT),
+                onClick = {
+                  viewModel.revealAllMembers()
+                }
+              )
+            )
+          }
+
+          if (memberCount > 0) {
+            dividerPref()
+          }
+        }
       }
 
       if (!state.recipient.isReleaseNotes && !state.recipient.isBlocked) {
@@ -748,15 +814,10 @@ class ConversationSettingsFragment :
           title = DSLSettingsText.from(R.string.HelpSettingsFragment__support_center),
           linkId = R.string.support_center_url
         )
-        clickPref(
-          icon = DSLSettingsIcon.from(R.drawable.symbol_invite_24),
-          title = DSLSettingsText.from(R.string.HelpSettingsFragment__contact_us),
-          onClick = { startActivity(AppSettingsActivity.help(requireContext())) }
-        )
-        clickPref(
+        externalLinkPref(
           icon = DSLSettingsIcon.from(R.drawable.symbol_heart_24),
           title = DSLSettingsText.from(R.string.preferences__donate_to_signal),
-          onClick = { startActivity(CheckoutFlowActivity.createIntent(requireContext(), InAppPaymentType.ONE_TIME_DONATION)) }
+          linkId = R.string.donate_url
         )
       }
 
@@ -838,23 +899,26 @@ class ConversationSettingsFragment :
         val memberCount = groupState.allMembers.size
         val canAdd = groupState.canAddToGroup && !groupState.isTerminated && !state.isDeprecatedOrUnregistered
 
-        if (groupState.canAddToGroup || memberCount > 0) {
+        if (groupState.canAddToGroup || (!manageGroupTweaks && memberCount > 0)) {
           dividerPref()
 
-          val memberHeaderText = if (groupState.isTerminated) {
-            resources.getQuantityString(R.plurals.ConversationSettingsFragment__d_former_members, memberCount, memberCount)
-          } else {
-            resources.getQuantityString(R.plurals.ContactSelectionListFragment_d_members, memberCount, memberCount)
-          }
-
-          sectionHeaderPref(
-            title = DSLSettingsText.from(memberHeaderText),
-            iconEnd = DSLSettingsIcon.from(CoreUiR.drawable.symbol_search_24),
-            onClick = {
-              val action = ConversationSettingsFragmentDirections.actionConversationSettingsFragmentToMemberSearchFragment(groupState.groupId, canAdd, groupState.groupLinkEnabled)
-              navController.safeNavigate(action)
+          if (!manageGroupTweaks) {
+            val memberHeaderText = if (groupState.isTerminated) {
+              resources.getQuantityString(R.plurals.ConversationSettingsFragment__d_former_members, memberCount, memberCount)
+            } else {
+              resources.getQuantityString(R.plurals.ContactSelectionListFragment_d_members, memberCount, memberCount)
             }
-          )
+            sectionHeaderPref(DSLSettingsText.from(memberHeaderText))
+
+            sectionHeaderPref(
+              title = DSLSettingsText.from(memberHeaderText),
+              iconEnd = DSLSettingsIcon.from(CoreUiR.drawable.symbol_search_24),
+              onClick = {
+                val action = ConversationSettingsFragmentDirections.actionConversationSettingsFragmentToMemberSearchFragment(groupState.groupId, canAdd, groupState.groupLinkEnabled)
+                navController.safeNavigate(action)
+              }
+            )
+          }
         }
 
         if (canAdd) {
@@ -869,47 +933,45 @@ class ConversationSettingsFragment :
           )
         }
 
-        colorizer.onGroupMembershipChanged(
-          serviceIds = groupState.allMembers.mapNotNull { it.member.serviceId.orNull() }
-        )
+        if (!manageGroupTweaks) {
+          for (member in groupState.members) {
+            val canSetMemberLabel = member.member.isSelf && groupState.canSetOwnMemberLabel
+            val memberLabel = member.getMemberLabel(groupState)
 
-        for (member in groupState.members) {
-          val canSetMemberLabel = member.member.isSelf && groupState.canSetOwnMemberLabel
-          val memberLabel = member.getMemberLabel(groupState)
-
-          customPref(
-            RecipientPreference.Model(
-              recipient = member.member,
-              isAdmin = member.isAdmin,
-              memberLabel = memberLabel,
-              canSetMemberLabel = canSetMemberLabel,
-              lifecycleOwner = viewLifecycleOwner,
-              onRowClick = {
-                if (canSetMemberLabel && memberLabel == null) {
-                  val action = ConversationSettingsFragmentDirections
-                    .actionConversationSettingsFragmentToMemberLabelFragment(groupState.groupId)
-                  navController.safeNavigate(action)
-                } else {
+            customPref(
+              RecipientPreference.Model(
+                recipient = member.member,
+                isAdmin = member.isAdmin,
+                memberLabel = memberLabel,
+                canSetMemberLabel = canSetMemberLabel,
+                lifecycleOwner = viewLifecycleOwner,
+                onRowClick = {
+                  if (canSetMemberLabel && memberLabel == null) {
+                    val action = ConversationSettingsFragmentDirections
+                      .actionConversationSettingsFragmentToMemberLabelFragment(groupState.groupId)
+                    navController.safeNavigate(action)
+                  } else {
+                    RecipientBottomSheetDialogFragment.show(parentFragmentManager, member.member.id, groupState.groupId)
+                  }
+                },
+                onAvatarClick = {
                   RecipientBottomSheetDialogFragment.show(parentFragmentManager, member.member.id, groupState.groupId)
                 }
-              },
-              onAvatarClick = {
-                RecipientBottomSheetDialogFragment.show(parentFragmentManager, member.member.id, groupState.groupId)
-              }
+              )
             )
-          )
-        }
+          }
 
-        if (groupState.canShowMoreGroupMembers) {
-          customPref(
-            LargeIconClickPreference.Model(
-              title = DSLSettingsText.from(R.string.ConversationSettingsFragment__see_all),
-              icon = DSLSettingsIcon.from(R.drawable.show_more, NO_TINT),
-              onClick = {
-                viewModel.revealAllMembers()
-              }
+          if (groupState.canShowMoreGroupMembers) {
+            customPref(
+              LargeIconClickPreference.Model(
+                title = DSLSettingsText.from(R.string.ConversationSettingsFragment__see_all),
+                icon = DSLSettingsIcon.from(R.drawable.show_more, NO_TINT),
+                onClick = {
+                  viewModel.revealAllMembers()
+                }
+              )
             )
-          )
+          }
         }
 
         if (state.recipient.isPushV2Group && !groupState.isTerminated) {

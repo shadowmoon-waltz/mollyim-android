@@ -26,6 +26,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.Observer
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.imageview.ShapeableImageView
 import org.signal.core.ui.util.ThemeUtil
 import org.signal.core.util.StringUtil
 import org.signal.core.util.dp
@@ -55,6 +56,7 @@ import org.thoughtcrime.securesms.util.Projection
 import org.thoughtcrime.securesms.util.ProjectionList
 import org.thoughtcrime.securesms.util.SearchUtil
 import org.thoughtcrime.securesms.util.SignalLocalMetrics
+import org.thoughtcrime.securesms.util.SwipeActionTypes
 import org.thoughtcrime.securesms.util.VibrateUtil
 import org.thoughtcrime.securesms.util.ViewUtil
 import org.thoughtcrime.securesms.util.adapter.mapping.MappingModel
@@ -63,6 +65,7 @@ import org.thoughtcrime.securesms.util.hasNoBubble
 import org.thoughtcrime.securesms.util.isScheduled
 import org.thoughtcrime.securesms.util.visible
 import java.util.Locale
+import org.signal.core.ui.R as CoreUiR
 
 /**
  * Represents a text-only conversation item.
@@ -103,6 +106,7 @@ open class V2ConversationItemTextOnlyViewHolder<Model : MappingModel<Model>>(
 
   override val reactionsView: View = binding.reactions
   override val quotedIndicatorView: View? = null
+  override val swipeToLeftView: View = binding.swipeToLeft
   override val replyView: View = binding.reply
   override val contactPhotoHolderView: View? = binding.senderPhoto
   override val badgeImageView: View? = binding.senderBadge
@@ -278,12 +282,34 @@ open class V2ConversationItemTextOnlyViewHolder<Model : MappingModel<Model>>(
       bodyBubbleDrawable.clearLocalChatColors()
     }
 
+    setSwipeIcon(binding.swipeToLeft, SignalStore.settings.getSwipeToLeftAction(), SwipeActionTypes.DEFAULT_DRAWABLE_FOR_LEFT);
+    setSwipeIcon(binding.reply, SignalStore.settings.getSwipeToRightAction(), SwipeActionTypes.DEFAULT_DRAWABLE_FOR_RIGHT);
+
+    binding.swipeToLeft.setBackgroundColor(themeDelegate.getReplyIconBackgroundColor())
     binding.reply.setBackgroundColor(themeDelegate.getReplyIconBackgroundColor())
 
     itemView.updateLayoutParams<ViewGroup.MarginLayoutParams> {
       topMargin = shape.topPadding.toInt()
       bottomMargin = shape.bottomPadding.toInt()
     }
+  }
+
+  private fun setSwipeIcon(icon: ShapeableImageView, action: String, defaultDrawableId: Int)
+  {
+    icon.setImageResource(
+      when (action) {
+        SwipeActionTypes.REPLY -> R.drawable.symbol_reply_24
+        SwipeActionTypes.DELETE, SwipeActionTypes.DELETE_NO_PROMPT -> CoreUiR.drawable.symbol_trash_24
+        SwipeActionTypes.COPY_TEXT, SwipeActionTypes.COPY_TEXT_POPUP -> CoreUiR.drawable.symbol_copy_android_24
+        SwipeActionTypes.FORWARD -> CoreUiR.drawable.symbol_forward_24
+        SwipeActionTypes.MESSAGE_DETAILS -> CoreUiR.drawable.symbol_info_24
+        SwipeActionTypes.SHOW_OPTIONS -> R.drawable.ic_more_vert_24
+        SwipeActionTypes.NOTE_TO_SELF -> R.drawable.symbol_note_24
+        SwipeActionTypes.MULTI_SELECT -> CoreUiR.drawable.symbol_check_circle_24
+        SwipeActionTypes.EDIT -> CoreUiR.drawable.symbol_edit_24
+        else -> defaultDrawableId // for SwipeActionTypes.DEFAULT, SwipeActionTypes.NONE, and any other string
+      }
+    )
   }
 
   override fun getAdapterPosition(recyclerView: RecyclerView): Int = bindingAdapterPosition

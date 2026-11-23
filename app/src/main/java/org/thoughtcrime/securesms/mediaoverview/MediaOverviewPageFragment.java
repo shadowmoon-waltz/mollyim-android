@@ -171,7 +171,8 @@ public final class MediaOverviewPageFragment extends LoggingFragment
                                               this,
                                               this,
                                               sorting.isRelatedToFileSize(),
-                                              threadId == MediaTable.ALL_THREADS);
+                                              threadId == MediaTable.ALL_THREADS,
+                                              !sorting.isRelatedToContentType());
     this.recyclerView.setAdapter(adapter);
     this.recyclerView.setLayoutManager(gridManager);
     this.recyclerView.setHasFixedSize(true);
@@ -203,6 +204,7 @@ public final class MediaOverviewPageFragment extends LoggingFragment
           this.loadLimit = threadId == MediaTable.ALL_THREADS ? INITIAL_LOAD_LIMIT : 0;
           this.allLoaded = loadLimit == 0;
           adapter.setShowFileSizes(sorting.isRelatedToFileSize());
+          adapter.setShowFileType(!sorting.isRelatedToContentType());
           if (isResumed()) {
             LoaderManager.getInstance(this).restartLoader(0, null, this);
           } else {

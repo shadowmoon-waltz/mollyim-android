@@ -110,6 +110,7 @@ class AppSettingsFragment : ComposeFragment(), Callbacks {
             is AppSettingsRoute.InternalRoute.Internal -> findNavController().safeNavigate(R.id.action_appSettingsFragment_to_internalSettingsFragment)
             is AppSettingsRoute.AccountRoute.ManageProfile -> findNavController().safeNavigate(R.id.action_appSettingsFragment_to_manageProfileActivity)
             is AppSettingsRoute.UsernameLinkRoute.UsernameLink -> findNavController().safeNavigate(R.id.action_appSettingsFragment_to_usernameLinkSettingsFragment)
+            is AppSettingsRoute.ForkSettings -> findNavController().safeNavigate(R.id.action_appSettingsFragment_to_forkSettingsFragment)
             else -> error("Unsupported route: ${route.javaClass.name}")
           }
         }
@@ -423,6 +424,20 @@ private fun AppSettingsContent(
               }
             )
           }
+        }
+
+        item {
+          Dividers.Default()
+        }
+
+        item {
+          Rows.TextRow(
+            text = stringResource(R.string.preferences__fork_specific),
+            icon = painterResource(R.drawable.symbol_help_24),
+            onClick = {
+              callbacks.navigate(AppSettingsRoute.ForkSettings)
+            }
+          )
         }
 
         item {

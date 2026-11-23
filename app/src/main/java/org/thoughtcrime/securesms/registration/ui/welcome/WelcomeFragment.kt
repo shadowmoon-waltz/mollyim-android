@@ -176,6 +176,9 @@ class WelcomeFragment : LoggingFragment(R.layout.fragment_registration_welcome_v
     override fun onMenuItemSelected(menuItem: MenuItem): Boolean = if (menuItem.itemId == R.id.phone_menu_use_proxy) {
       NavHostFragment.findNavController(this@WelcomeFragment).safeNavigate(WelcomeFragmentDirections.actionEditProxy())
       true
+    } else if (menuItem.itemId == R.id.phone_menu_set_identity_keys) {
+      NavHostFragment.findNavController(this@WelcomeFragment).safeNavigate(WelcomeFragmentDirections.actionSetIdentityKeys())
+      true
     } else {
       false
     }

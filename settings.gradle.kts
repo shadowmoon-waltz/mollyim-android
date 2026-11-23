@@ -120,4 +120,4 @@ include(":feature:media-send")
 include(":lintchecks")
 include(":fast-lint")
 
-rootProject.name = "Molly"
+rootProject.name = "MollySW"

@@ -1,4 +1,20 @@
-# Molly
+# MollySW
+
+This is a fork of Molly (itself a version of Signal), mostly small changes for my personal use. All the features (differences from upstream) of my earlier [SignalSW](https://github.com/shadowmoon-waltz/Signal-Android/blob/main/README.md) (a fork of Signal) were migrated over on 2025-05-10 (SignalSW v7.41.2-0, Molly v7.39.5-2).
+
+Notes: Main gradle build command: assembleProdWebsiteRelease. License is the same as upstream projects. Website builds are built using GitHub actions and signed using my GitHub Actions-specific signing key.
+
+Changes from stock Molly/Signal:
+- ~~we build play services/fcm for notifications, osm for maps, arm64 only~~ (Molly uses new FOSS FCM API library and OSM unified build)
+- whatever was in SignalSW
+- debug log is save-only/submit option disabled for now
+- swipe to left/right (from SignalSW) supports edit message as a action option
+- allows customizing double tap on conversation item actions (same as swipe actions with exception of option of show options)
+
+<details>
+<summary>Original Molly README</summary>
+
+This may or may not reflect all changes in MollySW.
 
 [![Test](https://github.com/mollyim/mollyim-android/workflows/Test/badge.svg)](https://github.com/mollyim/mollyim-android/actions)
 [![Reproducible build](https://github.com/mollyim/mollyim-android/actions/workflows/reprocheck.yml/badge.svg)](https://github.com/mollyim/mollyim-android/actions/workflows/reprocheck.yml)

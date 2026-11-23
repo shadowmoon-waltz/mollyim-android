@@ -73,6 +73,7 @@ public final class ConversationReactionOverlay extends FrameLayout {
 
   private boolean downIsOurs;
   private int     selected = -1;
+  private long    selectedAtTime = 0;
   private int     customEmojiIndex;
 
   private View             dropdownAnchor;
@@ -146,7 +147,8 @@ public final class ConversationReactionOverlay extends FrameLayout {
                    @NonNull PointF lastSeenDownPoint,
                    boolean isNonAdminInAnnouncementGroup,
                    @NonNull SelectedConversationModel selectedConversationModel,
-                   boolean canEditGroupInfo)
+                   boolean canEditGroupInfo,
+                   @Nullable MotionEvent motionEvent)
   {
     if (overlayState != OverlayState.HIDDEN) {
       return;
@@ -193,6 +195,13 @@ public final class ConversationReactionOverlay extends FrameLayout {
     conversationItem.setScaleY(ConversationItem.LONG_PRESS_SCALE_FACTOR);
 
     setVisibility(View.INVISIBLE);
+
+    if (motionEvent != null) {
+      motionEvent.setAction(MotionEvent.ACTION_DOWN);
+      applyTouchEvent(motionEvent);
+      motionEvent.setAction(MotionEvent.ACTION_UP);
+      applyTouchEvent(motionEvent);
+    }
 
     ViewKt.doOnLayout(this, v -> {
       showAfterLayout(conversationMessage, lastSeenDownPoint, isMessageOnLeft);
@@ -512,6 +521,7 @@ public final class ConversationReactionOverlay extends FrameLayout {
     switch (motionEvent.getAction()) {
       case MotionEvent.ACTION_DOWN:
         selected = getSelectedIndexViaDownEvent(motionEvent);
+        selectedAtTime = System.currentTimeMillis();
 
         deadzoneTouchPoint.set(motionEvent.getX(), motionEvent.getY());
         overlayState = OverlayState.DEADZONE;
@@ -519,6 +529,7 @@ public final class ConversationReactionOverlay extends FrameLayout {
         return true;
       case MotionEvent.ACTION_MOVE:
         selected = getSelectedIndexViaMoveEvent(motionEvent);
+        selectedAtTime = System.currentTimeMillis();
         return true;
       case MotionEvent.ACTION_UP:
         handleUpEvent();
@@ -640,7 +651,7 @@ public final class ConversationReactionOverlay extends FrameLayout {
   private void handleUpEvent() {
     if (selected != -1 && onReactionSelectedListener != null && backgroundView.getVisibility() == View.VISIBLE) {
       if (selected == customEmojiIndex) {
-        onReactionSelectedListener.onCustomReactionSelected(messageRecord, emojiViews[selected].getTag() != null);
+        onReactionSelectedListener.onCustomReactionSelected(messageRecord, emojiViews[selected].getTag() != null, System.currentTimeMillis() - selectedAtTime);
       } else {
         onReactionSelectedListener.onReactionSelected(messageRecord, SignalStore.emoji().getPreferredVariation(SignalStore.emoji().getReactions().get(selected)));
       }
@@ -865,7 +876,7 @@ public final class ConversationReactionOverlay extends FrameLayout {
   public interface OnReactionSelectedListener {
     void onReactionSelected(@NonNull MessageRecord messageRecord, String emoji);
 
-    void onCustomReactionSelected(@NonNull MessageRecord messageRecord, boolean hasAddedCustomEmoji);
+    void onCustomReactionSelected(@NonNull MessageRecord messageRecord, boolean hasAddedCustomEmoji, long holdDuration);
   }
 
   public interface OnActionSelectedListener {

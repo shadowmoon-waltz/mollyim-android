@@ -86,6 +86,7 @@ class AppSettingsActivity : DSLSettingsActivity() {
         AppSettingsRoute.Invite -> AppSettingsFragmentDirections.actionDirectToInviteFragment()
         AppSettingsRoute.DataAndStorageRoute.DataAndStorage -> AppSettingsFragmentDirections.actionDirectToStoragePreferenceFragment()
         AppSettingsRoute.AccountRoute.Account -> AppSettingsFragmentDirections.actionDirectToAccountSettingsFragment()
+        AppSettingsRoute.ForkSettings -> AppSettingsFragmentDirections.actionDirectToForkSettingsFragment()
         else -> error("Unsupported start location: ${appSettingsRoute?.javaClass?.name}")
       }
     }
@@ -242,6 +243,9 @@ class AppSettingsActivity : DSLSettingsActivity() {
 
     @JvmStatic
     fun invite(context: Context): Intent = getIntentForStartLocation(context, AppSettingsRoute.Invite)
+
+    @JvmStatic
+    fun forkSettings(context: Context): Intent = getIntentForStartLocation(context, AppSettingsRoute.ForkSettings)
 
     @JvmStatic
     fun upgradeLocalBackups(context: Context): Intent = getIntentForStartLocation(context, AppSettingsRoute.BackupsRoute.Local(triggerUpdateFlow = true))

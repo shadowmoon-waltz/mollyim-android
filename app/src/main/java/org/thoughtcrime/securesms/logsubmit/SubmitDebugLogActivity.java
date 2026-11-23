@@ -360,12 +360,12 @@ public class SubmitDebugLogActivity extends BaseActivity {
       submitButton.setText(R.string.SubmitDebugLogActivity_close);
       submitButton.setOnClickListener(v -> ActivityCompat.finishAfterTransition(this));
     } else {
-      if (KeyCachingService.isLocked()) {
+      //if (KeyCachingService.isLocked()) {
         submitButton.setText(R.string.SubmitDebugLogActivity_save);
         submitButton.setOnClickListener(v -> onSaveClicked());
-      } else {
-        submitButton.setOnClickListener(v -> onSubmitClicked());
-      }
+      //} else {
+      //  submitButton.setOnClickListener(v -> onSubmitClicked());
+      //}
     }
 
     scrollToTopButton.setOnClickListener(v -> DebugLogsViewer.scrollToTop(logWebView));
@@ -403,7 +403,7 @@ public class SubmitDebugLogActivity extends BaseActivity {
 
   private void appendLines(@NonNull List<String> lines) {
     ThreadUtil.runOnMain(() -> {
-      warningBanner.setVisibility(View.VISIBLE);
+      //warningBanner.setVisibility(View.VISIBLE);
       submitButton.setVisibility(View.VISIBLE);
     });
 
@@ -494,6 +494,7 @@ public class SubmitDebugLogActivity extends BaseActivity {
     builder.show();
   }
 
+  /*
   private void onSubmitClicked() {
     submitButton.setSpinning();
 
@@ -507,6 +508,7 @@ public class SubmitDebugLogActivity extends BaseActivity {
       submitButton.cancelSpinning();
     });
   }
+  */
 
   @Override
   protected void onDestroy() {

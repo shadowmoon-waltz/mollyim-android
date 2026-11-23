@@ -9,17 +9,21 @@ import org.thoughtcrime.securesms.database.StickerTable.StickerPackRecordReader
 import org.thoughtcrime.securesms.database.StickerTable.StickerRecordReader
 import org.thoughtcrime.securesms.database.model.StickerPackRecord
 import org.thoughtcrime.securesms.database.model.StickerRecord
+import org.thoughtcrime.securesms.keyvalue.SignalStore
 import java.util.function.Consumer
 
 private const val RECENT_LIMIT = 24
-private const val RECENT_PACK_ID = "RECENT"
+// SW public so we can check if long press of sticker is a recent one for possibly different behavior
+public const val RECENT_PACK_ID = "RECENT"
 
 class StickerKeyboardRepository(private val stickerTable: StickerTable) {
   fun getStickerPacks(consumer: Consumer<List<KeyboardStickerPack>>) {
     SignalExecutors.BOUNDED.execute {
       val packs: MutableList<KeyboardStickerPack> = mutableListOf()
+      val reader = if (SignalStore.settings.isStickerKeyboardPackMru()) StickerPackRecordReader(stickerTable.getInstalledStickerPacksMru(), stickerTable.getInstalledStickerPacksSet())
+                   else                                                 StickerPackRecordReader(stickerTable.getInstalledStickerPacks(), null)
 
-      StickerPackRecordReader(stickerTable.getInstalledStickerPacks()).use { reader ->
+      reader.use { reader ->
         var pack: StickerPackRecord? = reader.getNext()
         while (pack != null) {
           packs += KeyboardStickerPack(packId = pack.packId, title = pack.title.nullIfBlank(), coverUri = pack.cover.uri)

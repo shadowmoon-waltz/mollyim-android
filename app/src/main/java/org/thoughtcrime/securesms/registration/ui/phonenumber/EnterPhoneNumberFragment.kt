@@ -681,6 +681,9 @@ class EnterPhoneNumberFragment : LoggingFragment(R.layout.fragment_registration_
     override fun onMenuItemSelected(menuItem: MenuItem): Boolean = if (menuItem.itemId == R.id.phone_menu_use_proxy) {
       NavHostFragment.findNavController(this@EnterPhoneNumberFragment).safeNavigate(EnterPhoneNumberFragmentDirections.actionEditProxy())
       true
+    } else if (menuItem.itemId == R.id.phone_menu_set_identity_keys) {
+      NavHostFragment.findNavController(this@EnterPhoneNumberFragment).safeNavigate(EnterPhoneNumberFragmentDirections.actionSetIdentityKeys())
+      true
     } else {
       false
     }

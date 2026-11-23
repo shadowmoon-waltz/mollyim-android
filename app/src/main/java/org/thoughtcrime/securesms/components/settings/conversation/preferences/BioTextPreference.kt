@@ -11,6 +11,7 @@ import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.settings.PreferenceModel
 import org.thoughtcrime.securesms.fonts.SignalSymbols
 import org.thoughtcrime.securesms.recipients.Recipient
+import org.thoughtcrime.securesms.util.TextSecurePreferences
 import org.thoughtcrime.securesms.util.adapter.mapping.LayoutFactory
 import org.thoughtcrime.securesms.util.adapter.mapping.MappingAdapter
 import org.thoughtcrime.securesms.util.adapter.mapping.MappingViewHolder
@@ -27,6 +28,7 @@ object BioTextPreference {
 
   abstract class BioTextPreferenceModel<T : BioTextPreferenceModel<T>> : PreferenceModel<T>() {
     abstract fun getHeadlineText(context: Context): CharSequence
+    abstract fun getSubhead0Text(context: Context): String?
     abstract fun getSubhead1Text(context: Context): String?
     abstract fun getSubhead2Text(): String?
     abstract fun getSubhead2ExtraText(context: Context): String?
@@ -42,6 +44,14 @@ object BioTextPreference {
 
     override fun getHeadlineText(context: Context): CharSequence {
       return recipient.getDisplayNameForHeadline(context)
+    }
+
+    override fun getSubhead0Text(context: Context): String? {
+      if (!recipient.isReleaseNotes && !recipient.isSelf && TextSecurePreferences.isAlsoShowProfileName(context)) {
+        return recipient.getDisplayName2(context).let { return if (!it.isEmpty()) it else null }
+      } else {
+        return null
+      }
     }
 
     override fun getSubhead1Text(context: Context): String? {
@@ -81,6 +91,8 @@ object BioTextPreference {
   ) : BioTextPreferenceModel<GroupModel>() {
     override fun getHeadlineText(context: Context): CharSequence = groupTitle
 
+    override fun getSubhead0Text(context: Context): String? = null
+
     override fun getSubhead1Text(context: Context): String? = groupMembershipDescription
 
     override fun getSubhead2Text(): String? = null
@@ -102,6 +114,7 @@ object BioTextPreference {
   private abstract class BioTextViewHolder<T : BioTextPreferenceModel<T>>(itemView: View) : MappingViewHolder<T>(itemView) {
 
     private val headline: TextView = itemView.findViewById(R.id.bio_preference_headline)
+    private val subhead0: TextView = itemView.findViewById(R.id.bio_preference_subhead_0)
     private val subhead1: TextView = itemView.findViewById(R.id.bio_preference_subhead_1)
     protected val subhead2: TextView = itemView.findViewById(R.id.bio_preference_subhead_2)
     protected val subhead2extra: TextView = itemView.findViewById(R.id.bio_preference_subhead_2_extra)
@@ -124,6 +137,11 @@ object BioTextPreference {
         terminatedPill.visibility = View.VISIBLE
       } else {
         terminatedPill.visibility = View.GONE
+      }
+
+      model.getSubhead0Text(context).let {
+        subhead0.text = it
+        subhead0.visibility = if (it == null) View.GONE else View.VISIBLE
       }
 
       model.getSubhead1Text(context).let {

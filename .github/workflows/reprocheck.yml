@@ -6,9 +6,9 @@ on:
       version:
         description: "Enter the version to check"
         required: true
-  release:
-    types:
-      - published
+  #release:
+  #  types:
+  #    - published
 
 permissions:
   contents: read # to fetch code (actions/checkout)

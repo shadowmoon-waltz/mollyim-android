@@ -43,6 +43,7 @@ import android.view.WindowManager
 import android.view.animation.AnimationUtils
 import android.view.inputmethod.EditorInfo
 import android.widget.ImageButton
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.TextView.OnEditorActionListener
@@ -135,6 +136,7 @@ import org.signal.core.util.orNull
 import org.signal.core.util.requireDrawable
 import org.signal.core.util.requireParcelableCompat
 import org.signal.core.util.setActionItemTint
+import org.signal.core.util.Util
 import org.signal.ringrtc.CallLinkRootKey
 import org.thoughtcrime.securesms.BlockUnblockDialog
 import org.thoughtcrime.securesms.MainActivity
@@ -224,9 +226,11 @@ import org.thoughtcrime.securesms.conversation.drafts.DraftViewModel
 import org.thoughtcrime.securesms.conversation.mutiselect.ConversationItemAnimator
 import org.thoughtcrime.securesms.conversation.mutiselect.MultiselectItemDecoration
 import org.thoughtcrime.securesms.conversation.mutiselect.MultiselectPart
+import org.thoughtcrime.securesms.conversation.mutiselect.Multiselectable
 import org.thoughtcrime.securesms.conversation.mutiselect.forward.MultiselectForwardBottomSheet
 import org.thoughtcrime.securesms.conversation.mutiselect.forward.MultiselectForwardFragment
 import org.thoughtcrime.securesms.conversation.mutiselect.forward.MultiselectForwardFragmentArgs
+import org.thoughtcrime.securesms.conversation.mutiselect.forward.MultiselectForwardRepository
 import org.thoughtcrime.securesms.conversation.quotes.MessageQuotesBottomSheet
 import org.thoughtcrime.securesms.conversation.ui.edit.EditMessageHistoryDialog
 import org.thoughtcrime.securesms.conversation.ui.error.EnableCallNotificationSettingsDialog
@@ -360,6 +364,7 @@ import org.thoughtcrime.securesms.util.MessageUtil
 import org.thoughtcrime.securesms.util.PlayStoreUtil
 import org.thoughtcrime.securesms.util.RemoteConfig
 import org.thoughtcrime.securesms.util.SignalLocalMetrics
+import org.thoughtcrime.securesms.util.SwipeActionTypes
 import org.thoughtcrime.securesms.util.TextSecurePreferences
 import org.thoughtcrime.securesms.util.ViewUtil
 import org.thoughtcrime.securesms.util.atMidnight
@@ -561,6 +566,7 @@ class ConversationFragment :
   private lateinit var conversationActivityResultContracts: ConversationActivityResultContracts
   private lateinit var scrollToPositionDelegate: ScrollToPositionDelegate
   private lateinit var adapter: ConversationAdapterV2
+  private lateinit var clickListener: ConversationItemClickListener
   private lateinit var typingIndicatorAdapter: ConversationTypingIndicatorAdapter
   private lateinit var recyclerViewColorizer: RecyclerViewColorizer
   private lateinit var attachmentManager: AttachmentManager
@@ -568,6 +574,7 @@ class ConversationFragment :
   private lateinit var conversationHeaderPositionDecoration: ConversationHeaderPositionDecoration
   private lateinit var conversationItemDecorations: ConversationItemDecorations
   private lateinit var optionsMenuCallback: ConversationOptionsMenuCallback
+  private lateinit var sapDoubleTap: SwipeAvailabilityProvider
 
   private lateinit var chatRouter: MainNavigationChatDetailRouter
 
@@ -1428,10 +1435,21 @@ class ConversationFragment :
       .subscribeBy { presentRequestReviewState(it) }
       .addTo(disposables)
 
+    val sRight = SwipeAvailabilityProvider(SignalStore.settings.swipeToRightAction.let { if (it == SwipeActionTypes.DEFAULT) SwipeActionTypes.DEFAULT_FOR_RIGHT else it })
+    val sLeft = SwipeAvailabilityProvider(SignalStore.settings.swipeToLeftAction.let { if (it == SwipeActionTypes.DEFAULT) SwipeActionTypes.DEFAULT_FOR_LEFT else it })
+
     ConversationItemSwipeCallback(
-      SwipeAvailabilityProvider(),
-      this::handleReplyToMessage
+      sRight,
+      sRight,
+      sLeft,
+      sLeft
     ).attachToRecyclerView(binding.conversationItemRecycler)
+
+    sapDoubleTap = SwipeAvailabilityProvider(SignalStore.settings.doubleTapAction.let {
+      if (it == SwipeActionTypes.DEFAULT) SwipeActionTypes.DEFAULT_FOR_DOUBLE_TAP
+      else if (it == SwipeActionTypes.SHOW_OPTIONS) SwipeActionTypes.NONE
+      else it
+    })
 
     viewModel
       .inputReadyState
@@ -2262,10 +2280,11 @@ class ConversationFragment :
     scrollListener = ScrollListener()
     binding.conversationItemRecycler.addOnScrollListener(scrollListener!!)
 
+    clickListener = ConversationItemClickListener()
     adapter = ConversationAdapterV2(
       lifecycleOwner = viewLifecycleOwner,
       requestManager = Glide.with(this),
-      clickListener = ConversationItemClickListener(),
+      clickListener = clickListener,
       hasWallpaper = args.hasWallpaper,
       colorizer = colorizer,
       startExpirationTimeout = viewModel::startExpirationTimeout,
@@ -2784,7 +2803,7 @@ class ConversationFragment :
     if (menuState.shouldShowDeleteAction()) {
       items.add(
         ActionItem(CoreUiR.drawable.symbol_trash_24, resources.getString(R.string.conversation_selection__menu_delete)) {
-          handleDeleteMessages(selectedParts)
+          handleDeleteMessages(selectedParts, checkFastDeleteForMe = true)
           finishActionMode()
         }
       )
@@ -2853,11 +2872,12 @@ class ConversationFragment :
     conversationMessage: ConversationMessage,
     onActionSelectedListener: OnActionSelectedListener,
     selectedConversationModel: SelectedConversationModel,
-    onHideListener: OnHideListener
+    onHideListener: OnHideListener,
+    motionEvent: MotionEvent?
   ) {
     reactionDelegate.setOnActionSelectedListener(onActionSelectedListener)
     reactionDelegate.setOnHideListener(onHideListener)
-    reactionDelegate.show(requireActivity(), viewModel.recipientSnapshot!!, conversationMessage, conversationGroupViewModel.isNonAdminInAnnouncementGroup(), selectedConversationModel, conversationGroupViewModel.canEditGroupInfo())
+    reactionDelegate.show(requireActivity(), viewModel.recipientSnapshot!!, conversationMessage, conversationGroupViewModel.isNonAdminInAnnouncementGroup(), selectedConversationModel, conversationGroupViewModel.canEditGroupInfo(), motionEvent)
     viewModel.setIsReactionDelegateShowing(true)
     composeText.clearFocus()
   }
@@ -3059,7 +3079,33 @@ class ConversationFragment :
   }
 
   private fun handleCopyMessage(messageParts: Set<MultiselectPart>) {
-    viewModel.copyToClipboard(requireContext(), messageParts).subscribe().addTo(disposables)
+    handleCopyMessage(messageParts, SignalStore.settings.isCopyTextOpensPopup())
+  }
+
+  private fun handleCopyMessage(messageParts: Set<MultiselectPart>, popup: Boolean) {
+    if (!popup) {
+      viewModel.copyToClipboard(requireContext(), messageParts).subscribe().addTo(disposables)
+    } else {
+      viewModel
+        .getAsText(requireContext(), messageParts)
+        .observeOn(AndroidSchedulers.mainThread())
+        .doOnSuccess {
+          // https://stackoverflow.com/questions/7197939/copy-text-from-android-alertdialog
+          val v = EditText(requireContext())
+          v.setText(it)
+
+          MaterialAlertDialogBuilder(requireContext())
+            .setView(v)
+            .setPositiveButton("Close", null)
+            .setNegativeButton("Copy All") { d, _ ->
+              Util.copyToClipboard(requireContext(), it)
+              d.dismiss()
+            }
+            .show()
+        }
+        .subscribe()
+        .addTo(disposables)
+    }
   }
 
   private fun handleResend(conversationMessage: ConversationMessage) {
@@ -3100,7 +3146,7 @@ class ConversationFragment :
     chatRouter.goToChatDetail(MainNavigationDetailLocation.Chats.MessageDetails(recipientSnapshot.id, MessageId(conversationMessage.messageRecord.id)))
   }
 
-  private fun handleDeleteMessages(messageParts: Set<MultiselectPart>) {
+  private fun handleDeleteMessages(messageParts: Set<MultiselectPart>, forceDeleteForMe: Boolean = false, checkFastDeleteForMe: Boolean = false) {
     if (DeleteSyncEducationDialog.shouldShow()) {
       DeleteSyncEducationDialog
         .show(childFragmentManager)
@@ -3117,9 +3163,14 @@ class ConversationFragment :
       messageRecords = records,
       title = requireContext().resources.getQuantityString(R.plurals.ConversationFragment_delete_selected_title, records.size, records.size),
       message = requireContext().resources.getQuantityString(R.plurals.ConversationFragment_delete_selected_body, records.size, records.size),
-      isAdmin = conversationGroupViewModel.isAdmin()
+      isAdmin = conversationGroupViewModel.isAdmin(),
+      forceDeleteForMe = forceDeleteForMe,
+      checkFastDeleteForMe = checkFastDeleteForMe
     ).observeOn(AndroidSchedulers.mainThread())
-      .subscribe { (deleted: Boolean, _: Boolean) ->
+      .subscribe { (deleted: Boolean, deleted2: Boolean) ->
+        if (deleted2) {
+          adapter.clearMostRecentSelectedIfNecessary(records)
+        }
         if (!deleted) return@subscribe
         val editMessageId = inputPanel.editMessageId?.id
         if (editMessageId != null && records.any { it.id == editMessageId }) {
@@ -3190,18 +3241,67 @@ class ConversationFragment :
       )
   }
 
-  private inner class SwipeAvailabilityProvider : ConversationItemSwipeCallback.SwipeAvailabilityProvider {
+  private inner class SwipeAvailabilityProvider(val action: String) : ConversationItemSwipeCallback.SwipeAvailabilityProvider, ConversationItemSwipeCallback.OnSwipeListener {
     override fun isSwipeAvailable(conversationMessage: ConversationMessage): Boolean {
-      val recipient = viewModel.recipientSnapshot ?: return false
+      if (action == SwipeActionTypes.REPLY) {
+        val recipient = viewModel.recipientSnapshot ?: return false
 
-      return !isActionModeStarted() &&
-        MenuState.canReplyToMessage(
-          recipient,
-          MenuState.isActionMessage(conversationMessage.messageRecord),
-          conversationMessage.messageRecord,
-          viewModel.hasMessageRequestState,
-          conversationGroupViewModel.isNonAdminInAnnouncementGroup()
-        )
+        return !isActionModeStarted() &&
+          MenuState.canReplyToMessage(
+            recipient,
+            MenuState.isActionMessage(conversationMessage.messageRecord),
+            conversationMessage.messageRecord,
+            viewModel.hasMessageRequestState,
+            conversationGroupViewModel.isNonAdminInAnnouncementGroup()
+          )
+      }
+      else if (action == SwipeActionTypes.DELETE || action == SwipeActionTypes.DELETE_NO_PROMPT) {
+        return !isActionModeStarted() && MenuState.canDeleteMessage(conversationMessage.messageRecord)
+      }
+      else if (action == SwipeActionTypes.COPY_TEXT || action == SwipeActionTypes.COPY_TEXT_POPUP) {
+        return !isActionModeStarted() && MenuState.canCopyMessage(conversationMessage.messageRecord)
+      }
+      else if (action == SwipeActionTypes.FORWARD || action == SwipeActionTypes.NOTE_TO_SELF) {
+        return !isActionModeStarted() && MenuState.canForwardMessage(conversationMessage.messageRecord)
+      }
+      else if (action == SwipeActionTypes.MESSAGE_DETAILS) {
+        return !isActionModeStarted() && MenuState.canShowMessageDetails(conversationMessage.messageRecord)
+      }
+      else if (action == SwipeActionTypes.MULTI_SELECT || action == SwipeActionTypes.SHOW_OPTIONS) {
+        return !isActionModeStarted()
+      }
+      else if (action == SwipeActionTypes.EDIT) {
+        return !isActionModeStarted() && MenuState.canEditMessage(conversationMessage)
+      }
+      // includes SwipeActionTypes.NONE and any other string
+      return false
+    }
+
+    override fun onSwipe(conversationMessage: ConversationMessage, element: InteractiveConversationElement?, motionEvent: MotionEvent?) {
+      when (action) {
+        SwipeActionTypes.REPLY -> handleReplyToMessage(conversationMessage)
+        SwipeActionTypes.DELETE -> handleDeleteMessages(conversationMessage.multiselectCollection.toSet(), checkFastDeleteForMe = false)
+        SwipeActionTypes.DELETE_NO_PROMPT -> handleDeleteMessages(conversationMessage.multiselectCollection.toSet(), forceDeleteForMe = true)
+        SwipeActionTypes.COPY_TEXT -> handleCopyMessage(conversationMessage.multiselectCollection.toSet(), false)
+        SwipeActionTypes.COPY_TEXT_POPUP -> handleCopyMessage(conversationMessage.multiselectCollection.toSet(), true)
+        SwipeActionTypes.FORWARD -> handleForwardMessageParts(conversationMessage.multiselectCollection.toSet())
+        SwipeActionTypes.NOTE_TO_SELF -> handleForwardMessagePartsNoteToSelf(conversationMessage.multiselectCollection.toSet())
+        SwipeActionTypes.MESSAGE_DETAILS -> handleDisplayDetails(conversationMessage)
+        SwipeActionTypes.MULTI_SELECT -> handleEnterMultiselect(conversationMessage)
+        SwipeActionTypes.SHOW_OPTIONS ->
+          if (element != null && motionEvent != null && element is View && element is Multiselectable) clickListener.onItemLongClick2(element, element.getMultiselectPartForLatestTouch(), motionEvent)
+        SwipeActionTypes.EDIT -> handleEditMessage(conversationMessage)
+        // includes SwipeActionTypes.NONE and any other string
+        else -> Unit
+      }
+    }
+  }
+
+  private fun handleForwardMessagePartsNoteToSelf(messageParts: Set<MultiselectPart>) {
+    inputPanel.clearQuote()
+
+    MultiselectForwardFragmentArgs.create(requireContext(), messageParts) { args ->
+      MultiselectForwardRepository.sendNoteToSelf(requireActivity(), args)
     }
   }
 
@@ -3588,7 +3688,8 @@ class ConversationFragment :
       context ?: return
       val reactionsTag = "REACTIONS"
       if (parentFragmentManager.findFragmentByTag(reactionsTag) == null) {
-        ReactionsBottomSheetDialogFragment.create(messageId, isMms, conversationGroupViewModel.groupRecordSnapshot?.isTerminated == true).show(childFragmentManager, reactionsTag)
+        ReactionsBottomSheetDialogFragment.create(messageId, isMms, if (SignalStore.settings.isShowReactionTimestamps()) Locale.getDefault() else null,
+          conversationGroupViewModel.groupRecordSnapshot?.isTerminated == true).show(childFragmentManager, reactionsTag)
       }
     }
 
@@ -3603,6 +3704,13 @@ class ConversationFragment :
     }
 
     private fun onDoubleTapToEdit(conversationMessage: ConversationMessage) {
+      if (sapDoubleTap.action != SwipeActionTypes.EDIT) {
+        if (sapDoubleTap.isSwipeAvailable(conversationMessage)) {
+          sapDoubleTap.onSwipe(conversationMessage, null, null)
+        }
+        return
+      }
+
       if (!isValidEditMessageSend(conversationMessage.getMessageRecord(), System.currentTimeMillis())) {
         return
       }
@@ -3946,8 +4054,18 @@ class ConversationFragment :
     }
 
     override fun onItemLongClick(itemView: View, item: MultiselectPart) {
+      onItemLongClick2(itemView, item, null)
+    }
+
+    fun onItemLongClick2(itemView: View, item: MultiselectPart, motionEvent: MotionEvent? = null) {
       Log.d(TAG, "onItemLongClick")
       if (isActionModeStarted()) {
+        if (SignalStore.settings.isRangeMultiSelect()) {
+          adapter.toggleFromMostRecentSelectedTo(item.getMessageRecord())
+          binding.conversationItemRecycler.invalidateItemDecorations()
+          setCorrectActionModeMenuVisibility()
+          setActionModeTitle(calculateSelectedItemCount())
+        }
         return
       }
 
@@ -3958,7 +4076,8 @@ class ConversationFragment :
       val messageRecord = item.getMessageRecord()
       val recipient = viewModel.recipientSnapshot ?: return
 
-      if (messageRecord.isValidReactionTarget() &&
+      if ((motionEvent != null || !SignalStore.settings.isLongPressMultiSelect()) &&
+        messageRecord.isValidReactionTarget() &&
         !recipient.isBlocked &&
         !viewModel.hasMessageRequestState &&
         (!recipient.isGroup || recipient.isActiveGroup) &&
@@ -4076,7 +4195,8 @@ class ConversationFragment :
 
                 viewModel.setHideScrollButtonsForReactionOverlay(false)
               }
-            }
+            },
+            motionEvent
           )
         }
       } else if (item.conversationMessage.isActiveCollapsedHead) {
@@ -4401,9 +4521,9 @@ class ConversationFragment :
       }
     }
 
-    override fun onCustomReactionSelected(messageRecord: MessageRecord, hasAddedCustomEmoji: Boolean) {
+    override fun onCustomReactionSelected(messageRecord: MessageRecord, hasAddedCustomEmoji: Boolean, holdDuration: Long) {
       reactionDelegate.hide()
-      disposables += viewModel.updateCustomReaction(messageRecord, hasAddedCustomEmoji)
+      disposables += viewModel.updateCustomReaction(messageRecord, hasAddedCustomEmoji, holdDuration)
         .observeOn(AndroidSchedulers.mainThread())
         .subscribeBy(
           onSuccess = {
@@ -4440,7 +4560,7 @@ class ConversationFragment :
         ConversationReactionOverlay.Action.COPY -> handleCopyMessage(conversationMessage.multiselectCollection.toSet())
         ConversationReactionOverlay.Action.MULTISELECT -> handleEnterMultiselect(conversationMessage)
         ConversationReactionOverlay.Action.VIEW_INFO -> handleDisplayDetails(conversationMessage)
-        ConversationReactionOverlay.Action.DELETE -> handleDeleteMessages(conversationMessage.multiselectCollection.toSet())
+        ConversationReactionOverlay.Action.DELETE -> handleDeleteMessages(conversationMessage.multiselectCollection.toSet(), checkFastDeleteForMe = true)
         ConversationReactionOverlay.Action.END_POLL -> handleEndPoll(conversationMessage.messageRecord.getPoll()?.id)
         ConversationReactionOverlay.Action.PIN_MESSAGE -> handlePinMessage(conversationMessage)
         ConversationReactionOverlay.Action.UNPIN_MESSAGE -> handleUnpinMessage(conversationMessage.messageRecord.id)
